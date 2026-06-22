@@ -1,0 +1,21 @@
+{
+  "name": "miniwallet-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mini Wallet - backend (Sails + MongoDB). Engine config-driven 3 bước.",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "sails lift",
+    "console": "sails console"
+  },
+  "dependencies": {
+    "@sailshq/lodash": "^3.10.6",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "sails": "^1.5.14",
+    "sails-mongo": "^2.1.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

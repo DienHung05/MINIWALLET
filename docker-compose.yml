@@ -1,0 +1,36 @@
+# MongoDB cho Mini Wallet — chạy ở chế độ 1-node Replica Set
+# Vì sao Replica Set? MongoDB chỉ cho dùng multi-document TRANSACTION (cần cho
+# bước Verify ghi sổ kép ACID) khi chạy ở chế độ replica set, kể cả chỉ 1 node.
+#
+# Cách dùng:
+#   docker compose up -d        # bật MongoDB
+#   docker compose logs -f mongo # xem log (chờ healthcheck initiate xong)
+#   docker compose down          # tắt (giữ dữ liệu trong volume)
+#   docker compose down -v       # tắt + xoá sạch dữ liệu
+#
+# Chuỗi kết nối cho backend (đã set sẵn trong backend/config/datastores.js):
+#   mongodb://127.0.0.1:27017/miniwallet?replicaSet=rs0
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: miniwallet-mongo
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # Tự khởi tạo replica set lần đầu, các lần sau chỉ kiểm tra trạng thái.
+      test: >
+        mongosh --quiet --eval "
+          try { rs.status().ok }
+          catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]}).ok }
+        "
+      interval: 5s
+      timeout: 30s
+      retries: 30
+      start_period: 10s
+
+volumes:
+  mongo-data:

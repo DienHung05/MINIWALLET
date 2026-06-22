@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+build/
+.tmp/
+**/.tmp/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+**/config/local.js
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Mongo data (docker volume is managed by docker, but ignore any local dumps)
+mongo-data/
+dump/
