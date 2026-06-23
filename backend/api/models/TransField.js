@@ -1,9 +1,15 @@
 module.exports = {
     attributes: {
-        service: { model: 'service', required: true },
-        name: { type: 'string', required: true },
-        dataType: { type: 'string', isIn: ['string', 'number', 'boolean'], defaultsTo: 'string' },
-        required: { type: 'boolean', defaultsTo: true },
-        constraints: { type: 'json' },
+        service: { type: 'string', required: true },
+        fieldName: {type: 'string', required: true },
+        fieldFormat: { type: 'string', defaultsTo: 'string' },
+        minLength: { type: 'number' },
+        maxLength: { type: 'number' },
+        regex: { type: 'string' },
+        isRequired: { type: 'boolean', defaultsTo: true },
+        needSecured: { type: 'boolean', defaultsTo: false },
+        order: { type: 'number', defaultsTo: 0 },
+        errorCode: { type: 'string' },
+        status: { type: 'string', defaultsTo: 'active' },
     },
 };
