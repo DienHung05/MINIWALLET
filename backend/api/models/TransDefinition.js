@@ -1,6 +1,6 @@
 module.exports = {
     attributes: {
-        service: { model: 'service', required: true },
+        service: { type: 'string', required: true },
         glSteps: { type: 'json', defaultsTo: []},
     },
 };

@@ -1,7 +1,6 @@
 module.exports = {
     attributes: {
-        transRefId: { type: 'string', required: true, unique: true },
-        service: { model: 'service' },
+        service: { type: 'string' },
         inputMessage: { type: 'json' },
         outputMessage: { type: 'json' },
         transSteplog: { type: 'json', defaultsTo: [] },
