@@ -1,9 +1,9 @@
 module.exports = {
-    attributes: {
-        service: { type: 'string' },
-        inputMessage: { type: 'json' },
-        outputMessage: { type: 'json' },
-        transSteplog: { type: 'json', defaultsTo: [] },
-        status: { type: 'string', isIn: ['init', 'pending', 'done', 'failed'], defaultsTo: 'init' },
-    }
+  attributes: {
+    service: { type: 'string', required: true },
+    inputMessage: { type: 'json', defaultsTo: {} },
+    outputMessage: { type: 'json', defaultsTo: {} },  
+    transStepLog: { type: 'json', defaultsTo: [] },
+    status: { type: 'string', isIn: ['init','pending','processing','done','failed','reversed'], defaultsTo: 'init' },
+  },
 };
