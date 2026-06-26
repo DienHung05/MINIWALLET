@@ -1,10 +1,3 @@
-/**
- * Helper: computeChecksum  (CÀI Ở NGÀY 4)
- * Tính "dấu vân tay" cho một ví để phát hiện sửa balance trái phép (MINIWALLET §3.3).
- * Gọi: await sails.helpers.computeChecksum(balance, ownerType, ownerRef)
- *
- * Quy tắc vàng: MỌI nơi đổi balance đều phải tính lại checksum ngay sau đó.
- */
 module.exports = {
   friendlyName: 'Compute checksum',
   description: 'Tính checksum (sha256) cho một ví.',
@@ -21,12 +14,9 @@ module.exports = {
   },
 
   fn: async function (inputs, exits) {
-    // TODO Ngày 4:
-    //   const crypto = require('crypto');
-    //   const secret = sails.config.custom.checksumSecret;
-    //   const raw = [inputs.balance, inputs.ownerType, inputs.ownerRef, inputs.currency, secret].join('|');
-    //   const checksum = crypto.createHash('sha256').update(raw).digest('hex');
-    //   return exits.success(checksum);
-    return exits.success('TODO-checksum');
+    const crypto = require('crypto');
+    const secret = sails.config.custom.checksumSecret;
+    const raw = [inputs.balance, inputs.ownerType, inputs.ownerRef, inputs.currency, secret].join('|');
+    return exits.success(crypto.createHash('sha256').update(raw).digest('hex'));
   },
 };
