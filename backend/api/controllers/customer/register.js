@@ -6,7 +6,7 @@ module.exports = async function register(req, res) {
   const pinHash = await sails.helpers.hashPin(`${pin}`);
   const customer = await Customer.create({ phone, pinHash, name: name || phone }).fetch();
 
-  const balance = 1000000; // tặng 1.000.000 khi đăng ký (demo)
+  const balance = 1000000; 
   const checksum = await sails.helpers.computeChecksum(balance, 'customer', customer.id, 'VND');
   const pocket = await Pocket.create({ ownerType: 'customer', ownerRef: customer.id, balance, checksum }).fetch();
   await Customer.updateOne(customer.id).set({ pocket: pocket.id });
