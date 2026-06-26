@@ -1,23 +1,17 @@
-module.exports = async function (req, res, proceed) {
+module.exports = async function isAuthenticated(req, res, proceed) {
   const jwt = require('jsonwebtoken');
-  const header =req.headers.authorization || '';
+  const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return res.json({ err: 401, message: 'Thiếu token đăng nhập'}); 
-
-  let payload;
+  if (!token) return res.fail(401, 'Thiếu token');
   try {
-    payload = jwt.verify(token, sails.config.custom.jwtSecret);
+    const p = jwt.verify(token, sails.config.custom.jwtSecret);
+    const user = p.role === 'officer' ? await Officer.findOne(p.sub) : await Customer.findOne(p.sub);
+    if (!user) return res.fail(401, 'Token không hợp lệ');
+    req.info = req.info || {};
+    req.info.user = user;
+    req.info.role = p.role;
+    return proceed();
   } catch (e) {
-    return res.json({ err: 401, message: 'Token không hợp lệ hoặc đã hết hạn' });
+    return res.fail(401, 'Token hết hạn/không hợp lệ');
   }
-
-  const user = payload.role === 'customer' 
-  ? await Customer.findOne({ id: payload.sub }) 
-  : await Officer.findOne({ id: payload.sub });
-  if(!user) return res.json({ err: 401, message: 'Tài khoản không tồn tại' });
-
-  req.info = req.info || {};
-  req.info.user = user;
-  req.info.role = payload.role;
-  return proceed();
 };

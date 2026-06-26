@@ -1,4 +1,4 @@
-module.exports = async function (req, res, proceed) {
+module.exports = async function isOfficer(req, res, proceed) {
   if (req.info && req.info.role === 'officer') return proceed();
-  return res.json({ err: 403, message: 'Chỉ Officer mới được phép truy cập' });
+  return res.fail(403, 'Chỉ Officer mới được phép');
 };

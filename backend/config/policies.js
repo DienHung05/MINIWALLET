@@ -1,10 +1,9 @@
 module.exports.policies = {
-
-  '*': false,
+  '*': false,                       
   health: true,
-  'customer/register': true,
+  'customer/register': true,        
   'customer/login': true,
   'officer/login': true,
-  me: ['isAuthenticated'],
-  
+  me: 'isAuthenticated',
+  'customer/balance': 'isAuthenticated',
 };
