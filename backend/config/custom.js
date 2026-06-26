@@ -15,4 +15,10 @@ module.exports.custom = {
 
   // bcrypt cost — số vòng hash PIN (10 là hợp lý cho dev)
   bcryptRounds: 10,
+
+  // Mã lỗi tập trung 
+  errCodes: {
+    OK: 200, BAD_REQUEST: 400, UNAUTHORIZED: 401, FORBIDDEN: 403,
+    NOT_FOUND: 404, CONFLICT: 409, INSUFFICIENT: 4001, CHECKSUM: 5001,
+  },
 };
