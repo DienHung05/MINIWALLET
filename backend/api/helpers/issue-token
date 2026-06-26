@@ -1,0 +1,18 @@
+module.exports = {
+    friendlyName: 'Issue token',
+    description: 'Tạo một token mới cho người dùng',
+    inputs: {
+        userId: { type: 'string', required: true },
+        role: { type: 'string', required: true, isIn: ['customer', 'officer'] },
+    },
+    exits: { success: { outputType: 'string' } },
+    fn: async function (inputs, exits) {
+        const jwt = require('jsonwebtoken');
+        const token = jwt.sign(
+            { sub: inputs.userId, role: inputs.role },
+            sails.config.custom.jwtSecret,
+            { expiresIn: sails.config.custom.jwtTtl },
+        );
+        return exits.success(token);
+    },
+};
