@@ -7,7 +7,7 @@ module.exports = {
   exits: { success: { outputType: 'string' } },
   fn: async function (inputs, exits) {
     const bcrypt = require('bcryptjs');
-    const hash = await bcrypt.hash(inputs.secret, sails.config.custom.bcryptRounds);
+    const hash = await bcrypt.hash(inputs.pin, sails.config.custom.bcryptRounds);
     return exits.success(hash);
   },
 };
