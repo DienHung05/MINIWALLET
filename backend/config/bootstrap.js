@@ -80,4 +80,30 @@ module.exports.bootstrap = async function () {
   for (const c of connectors) {
     if (!(await Connector.findOne({ code: c.code }))) { await Connector.create(c); sails.log.info('Seed: Connector ' + c.code); }
   }
+
+  // ── 6) Config LINK_BANK (liên kết ngân hàng — KHÔNG có dòng tiền) ──
+  if (!(await Service.findOne({ code: 'LINK_BANK' }))) {
+    const s = await Service.create({
+      code: 'LINK_BANK', name: 'Liên kết ngân hàng', serviceType: 'link', currency: 'VND',
+      fieldBuilder: [
+        { name: 'BANKCODE', source: 'mapping', from: 'bankCode' },
+        { name: 'ACCOUNTNO', source: 'mapping', from: 'accountNo' },
+      ],
+      feeConfig: { type: 'fixed', value: 0 },
+      auth: { method: 'OTP' },
+      hooks: [
+        { phase: 'onConfirm',   connector: 'VCB', operation: 'sendOtp',   inputMap: { account: 'ACCOUNTNO' }, outputMap: { OTPREF: 'otpRef' } },
+        { phase: 'onPreVerify', connector: 'VCB', operation: 'verifyOtp', inputMap: { otpRef: 'OTPREF', otp: 'OTP', account: 'ACCOUNTNO' }, outputMap: { INSTRTOKEN: 'token', HOLDERNAME: 'name' }, onFailure: 'abort' },
+      ],
+      effects: [{ type: 'createInstrument', with: { type: 'bankAccount', connector: 'VCB', tokenVar: 'INSTRTOKEN', nameVar: 'HOLDERNAME', maskedVar: 'ACCOUNTNO' } }],
+      enabled: true,
+    }).fetch();
+    const sid = String(s.id);
+    await TransField.createEach([
+      { service: sid, fieldName: 'BANKCODE', fieldFormat: 'string', isRequired: true, order: 1, errorCode: 400 },
+      { service: sid, fieldName: 'ACCOUNTNO', fieldFormat: 'string', regex: '^\\d{6,19}$', isRequired: true, order: 2, errorCode: 400 },
+    ]);
+    await TransDefinition.create({ service: sid, glSteps: [] });  // ⟵ rỗng = không chuyển tiền
+    sails.log.info('Seed: Service LINK_BANK');
+  }
 };
