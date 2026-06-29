@@ -1,6 +1,6 @@
 module.exports.globals = {
-  _: require('@sailshq/lodash'),
+  _: false,
   async: false,
-  models: true,
   sails: true,
-};  
+  models: true,
+};

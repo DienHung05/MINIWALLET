@@ -6,4 +6,9 @@ module.exports.routes = {
   'POST /api/officer/login':     { action: 'officer/login' },
   'GET  /api/me':                { action: 'me' },
   'GET  /api/customer/balance':  { action: 'customer/balance' },
+
+  // Engine 3 runtime 
+  'POST /api/txn/request': { action: 'txn/request' },
+  'POST /api/txn/confirm': { action: 'txn/confirm' },
+  'POST /api/txn/verify':  { action: 'txn/verify' },
 };
