@@ -11,4 +11,10 @@ module.exports.routes = {
   'POST /api/txn/request': { action: 'txn/request' },
   'POST /api/txn/confirm': { action: 'txn/confirm' },
   'POST /api/txn/verify':  { action: 'txn/verify' },
+
+  'POST /mock/vcb/:op':   { action: 'mock/vcb' },
+  'POST /mock/napas/:op': { action: 'mock/napas' },
+  'POST /mock/visa/:op':  { action: 'mock/visa' },
+
+  'POST /api/admin/connector/test': { action: 'admin/test-connector' },
 };

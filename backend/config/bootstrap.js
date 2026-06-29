@@ -9,20 +9,17 @@ module.exports.bootstrap = async function () {
   });
   sails.log.info('Globalized models: ' + Object.keys(sails.models).join(', '));
 
-  // ── 1) Currency VND ──
   if (!(await Currency.findOne({ code: 'VND' }))) {
     await Currency.create({ code: 'VND', name: 'Vietnam Dong', decimal: 0 });
     sails.log.info('Seed: Currency VND');
   }
 
-  // ── 2) Officer admin/admin123 ──
   if (!(await Officer.findOne({ username: 'admin' }))) {
     const passwordHash = await sails.helpers.hashPin('admin123');
     await Officer.create({ username: 'admin', passwordHash });
     sails.log.info('Seed: Officer admin/admin123');
   }
 
-  // ── 3) Ví System (gom phí), vai trò SYSTEM_FEE ──
   if (!(await Pocket.findOne({ ownerType: 'system', ownerRef: 'SYSTEM_FEE' }))) {
     const checksum = await sails.helpers.computeChecksum(0, 'system', 'SYSTEM_FEE', 'VND');
     await Pocket.create({ ownerType: 'system', ownerRef: 'SYSTEM_FEE', balance: 0, checksum });
@@ -63,5 +60,24 @@ module.exports.bootstrap = async function () {
       ],
     });
     sails.log.info('Seed: Service P2P + TransField + TransValidation + TransDefinition');
+  }
+
+  const BASE = 'http://127.0.0.1:1337/mock';
+  const connectors = [
+    { code: 'VCB', name: 'Mock Vietcombank', kind: 'bank', baseUrl: BASE + '/vcb', operations: {
+      sendOtp: { method: 'POST', path: '/sendOtp', request: { account: '$.account'}, response: { otpRef: '$.data.otpRef' } },
+      verifyOtp: { method: 'POST', path: '/verify-otp', request: { otpRef: '$.otpRef', otp: '$.otp', account: '$.account' }, response: { token: '$.data.token', name: '$.data.name' } },
+    } },
+    { code: 'VISA', name: 'Mock VISA acquirer', kind: 'card', baseUrl: BASE + '/visa', operations: {
+      charge: { method: 'POST', path: '/charge', request: { token: '$.token', amount: '$.amount', refId: '$.refId' }, response: { authCode: '$.data.authCode' }, idempotent: true },
+    } },
+    { code: 'NAPAS', name: 'Mock NAPAS payout', kind: 'payout', baseUrl: BASE + '/napas', operations: {
+      validateAccount: { method: 'POST', path: '/validate', request: { account: '$.account', bankCode: '$.bankCode' }, response: { name: '$.data.name' } },
+      payout: { method: 'POST', path: '/payout', request: { account: '$.account', amount: '$.amount', refId: '$.refId' }, response: { ref: '$.data.ref', state: '$.data.state' }, idempotent: true },
+      status: { method: 'POST', path: '/status', request: { refId: '$.refId' }, response: { state: '$.data.state' } },
+    } },
+  ];
+  for (const c of connectors) {
+    if (!(await Connector.findOne({ code: c.code }))) { await Connector.create(c); sails.log.info('Seed: Connector ' + c.code); }
   }
 };
