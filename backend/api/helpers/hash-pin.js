@@ -1,15 +1,10 @@
 module.exports = {
   friendlyName: 'Hash pin',
-  description: 'Băm (hash) PIN bằng bcrypt trước khi lưu.',
-
+  description: 'Băm một chuỗi bí mật bằng bcrypt trước khi lưu DB',
   inputs: {
-    pin: { type: 'string', required: true, description: 'PIN/mật khẩu dạng thô' },
+    secret: { type: 'string', required: true },
   },
-
-  exits: {
-    success: { outputType: 'string' },
-  },
-
+  exits: { success: { outputType: 'string' } },
   fn: async function (inputs, exits) {
     const bcrypt = require('bcryptjs');
     const hash = await bcrypt.hash(inputs.pin, sails.config.custom.bcryptRounds);
