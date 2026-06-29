@@ -64,9 +64,11 @@
 
 ## 6. Việc cần làm tiếp (checklist triển khai)
 
-- [ ] Thêm index unique (`Transaction.transRefId`, `PocketEntry (transRefId, stepOrder)`).
+- [x] Thêm index unique (`Transaction.transRefId`, `PocketEntry (transRefId, stepOrder)`) — `config/bootstrap.js`.
+- [x] Sửa `processVerify` dùng **CAS claim** `pending→processing` + **replay idempotent** — `api/services/engine.js`.
+- [x] `executeLedger`: lỗi `E11000` → 409, không fallback ghi lại.
+- [x] Cờ `concurrency:'optimistic'` bỏ khoá pessimistic (cho fan-out chạy song song).
 - [ ] Thêm field `clientRequestId`/`lockOwner`/`lockedAt`/`processingSince` vào model + status `expired`.
-- [ ] Sửa `processVerify` dùng CAS claim + replay idempotent.
-- [ ] Bắt buộc `withTransaction`; bật lại replica set (`?replicaSet=rs0`) khi môi trường ổn.
+- [ ] Bắt buộc `withTransaction`; bật replica set qua `DATABASE_URL=...?replicaSet=rs0` khi môi trường ổn.
 - [ ] Viết janitor `recover()` + gọi ở bootstrap + cron.
-- [ ] (S8–S10) Connector timeout/idempotency + Outbox + suspense/nostro + đối soát.
+- [ ] (S8–S10) Connector timeout/idempotency + Outbox + suspense/nostro + đối soát; batch orchestrator cho fan-out lớn.

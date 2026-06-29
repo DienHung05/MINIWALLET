@@ -9,6 +9,16 @@ module.exports.bootstrap = async function () {
   });
   sails.log.info('Globalized models: ' + Object.keys(sails.models).join(', '));
 
+  // Unique index 
+  try {
+    const db = sails.getDatastore().manager;
+    await db.collection('transaction').createIndex({ transRefId: 1 }, { unique: true });
+    await db.collection('pocketentry').createIndex({ transRefId: 1, stepOrder: 1 }, { unique: true });
+    sails.log.info('Index: transaction.transRefId + pocketentry(transRefId,stepOrder) [unique]');
+  } catch (e) {
+    sails.log.warn('Không tạo được unique index (có thể do dữ liệu trùng cũ): ' + e.message);
+  }
+
   if (!(await Currency.findOne({ code: 'VND' }))) {
     await Currency.create({ code: 'VND', name: 'Vietnam Dong', decimal: 0 });
     sails.log.info('Seed: Currency VND');
@@ -81,7 +91,7 @@ module.exports.bootstrap = async function () {
     if (!(await Connector.findOne({ code: c.code }))) { await Connector.create(c); sails.log.info('Seed: Connector ' + c.code); }
   }
 
-  // ── 6) Config LINK_BANK (liên kết ngân hàng — KHÔNG có dòng tiền) ──
+  // Config LINK_BANK
   if (!(await Service.findOne({ code: 'LINK_BANK' }))) {
     const s = await Service.create({
       code: 'LINK_BANK', name: 'Liên kết ngân hàng', serviceType: 'link', currency: 'VND',
