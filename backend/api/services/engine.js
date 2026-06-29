@@ -155,7 +155,11 @@ async function executeLedger(service, body, trailId) {
   try { await session.withTransaction(async () => { await apply(session); }); }
   catch (e) {
     await session.endSession();
-    if (e && e.isBusiness) throw e;
+    // Lỗi nghiệp vụ hoặc trùng khoá (unique index) -> KHÔNG fallback (tránh ghi lặp)
+    if (e && (e.isBusiness || e.code === 11000)) {
+      if (e.code === 11000) throw fail(409, 'Giao dịch đã được ghi sổ (trùng transRefId/bút toán)');
+      throw e;
+    }
     sails.log.warn('Transaction không khả dụng, ghi sổ không-transaction: ' + e.message);
     await apply(undefined); return txnDoc;
   }
@@ -194,23 +198,43 @@ async function processConfirm(transRefId, ctx) {
   return { transRefId, authMethod: (service.auth && service.auth.method) || 'NONE' };
 }
 
-async function processVerify(transRefId, credential, ctx) {
-  const trail = await TransactionTrail.findOne(transRefId);
-  if (!trail) throw fail(404, 'Không tìm thấy giao dịch');
-  if (trail.status !== 'pending') throw fail(409, 'Giao dịch đã xử lý hoặc không hợp lệ');
-  if (String(trail.inputMessage.userId) !== String(ctx.userId)) throw fail(403, 'Không phải giao dịch của bạn');
-  const service = await Service.findOne(trail.service);
+// Trả lại biên lai của 1 giao dịch đã kết thúc (replay idempotent)
+async function finalResultOf(trail) {
+  if (trail.status === 'done') {
+    const txn = await Transaction.findOne({ transRefId: trail.id });
+    return { transRefId: trail.id, status: 'done', replay: true,
+      transaction: txn ? { code: txn.code, amount: txn.amount, fee: txn.fee, total: txn.totalAmount } : null };
+  }
+  return { transRefId: trail.id, status: trail.status, replay: true };
+}
 
-  const stored = (trail.outputMessage && trail.outputMessage.TRANSBODY) || {};
-  const fresh = await buildFields(service, { userId: trail.inputMessage.userId, parameters: trail.inputMessage.parameters });
+async function processVerify(transRefId, credential, ctx) {
+  const trail0 = await TransactionTrail.findOne(transRefId);
+  if (!trail0) throw fail(404, 'Không tìm thấy giao dịch');
+  if (String(trail0.inputMessage.userId) !== String(ctx.userId)) throw fail(403, 'Không phải giao dịch của bạn');
+
+  // L1 — CAS CLAIM: chỉ MỘT request đổi được pending -> processing (chống double-submit)
+  const claimed = await TransactionTrail.updateOne({ id: transRefId, status: 'pending' }).set({ status: 'processing' });
+  if (!claimed) {
+    const t = await TransactionTrail.findOne(transRefId);
+    // L4 — Replay idempotent: đã done/failed/reversed -> trả lại kết quả cũ, KHÔNG xử lý lần 2
+    if (t && ['done', 'failed', 'reversed', 'expired'].includes(t.status)) return await finalResultOf(t);
+    throw fail(409, 'Giao dịch đang được xử lý, vui lòng đợi');
+  }
+
+  const service = await Service.findOne(trail0.service);
+  const stored = (trail0.outputMessage && trail0.outputMessage.TRANSBODY) || {};
+  const fresh = await buildFields(service, { userId: trail0.inputMessage.userId, parameters: trail0.inputMessage.parameters });
   const body = Object.assign({}, stored, fresh);   // giữ OTPREF từ confirm
   body.TRANSREFID = transRefId; body.OTP = credential; body.CREDENTIAL = credential;
   await validateFields(service, body);
   computeFee(service, body);
 
+  // Cờ đồng thời: 'optimistic' -> KHÔNG khoá ví (cho fan-out chạy song song, dựa $inc atomic)
+  const optimistic = service.concurrency === 'optimistic';
   const senderId = body.SENDERID; let locked = false;
   try {
-    if (senderId) {
+    if (senderId && !optimistic) {
       const lockRes = await Pocket.updateOne({ id: senderId, state: 'idle' }).set({ state: 'inProgress' });
       if (!lockRes) throw fail(409, 'Ví đang có giao dịch khác, thử lại sau'); locked = true;
     }
@@ -222,11 +246,11 @@ async function processVerify(transRefId, credential, ctx) {
     }
     await validateBusiness(service, body);
     await runHooks(service, 'onPreVerify', body);   // vd verifyOtp / charge thẻ
-    const txn = await executeLedger(service, body, transRefId);
+    const txn = await executeLedger(service, body, transRefId);   // flip processing -> done (+unique index chống ghi trùng)
     const effects = await applyEffects(service, body);
     return { transRefId, status: 'done', transaction: { code: txn.code, amount: txn.amount, fee: txn.fee, total: txn.totalAmount }, effects };
   } catch (e) {
-    if (trail.status === 'pending') await TransactionTrail.updateOne(transRefId).set({ status: 'failed' });
+    await TransactionTrail.updateOne({ id: transRefId, status: 'processing' }).set({ status: 'failed' });
     throw e;
   } finally {
     if (locked) await Pocket.updateOne({ id: senderId }).set({ state: 'idle' });
