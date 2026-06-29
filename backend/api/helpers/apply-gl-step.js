@@ -1,13 +1,3 @@
-/**
- * Helper: applyGlStep  (CÀI Ở NGÀY 5 — LÕI QUAN TRỌNG NHẤT)
- * Dời tiền giữa 2 ví một cách NGUYÊN TỬ và ghi dấu vết.
- *
- * Một "bút toán" (glStep) = trừ ví debit, cộng ví credit, cùng một số tiền.
- * Phải: dùng $inc native (nguyên tử) + tính lại checksum + ghi PocketEntry.
- * Toàn bộ chuỗi glSteps của 1 giao dịch chạy trong MỘT transaction (xem run-gl-steps).
- *
- * Tài liệu: MINIWALLET §1.3 (ghi sổ kép), §1.7 (ACID), §3.2 bước 3, §3.3.
- */
 module.exports = {
   friendlyName: 'Apply GL step',
   description: 'Thực hiện một bút toán: trừ ví debit, cộng ví credit (nguyên tử).',
