@@ -116,4 +116,60 @@ module.exports.bootstrap = async function () {
     await TransDefinition.create({ service: sid, glSteps: [] });  // ⟵ rỗng = không chuyển tiền
     sails.log.info('Seed: Service LINK_BANK');
   }
+
+  // ── 7) Ví suspense (giữ tiền in-flight) + nostro (gương tiền đối tác) ──
+  for (const w of [
+    { ownerType: 'suspense', ownerRef: 'SUSPENSE_PAYOUT' },
+    { ownerType: 'nostro', ownerRef: 'NOSTRO_NAPAS' },
+  ]) {
+    if (!(await Pocket.findOne(w))) {
+      const checksum = await sails.helpers.computeChecksum(0, w.ownerType, w.ownerRef, 'VND');
+      await Pocket.create({ ownerType: w.ownerType, ownerRef: w.ownerRef, balance: 0, checksum });
+      sails.log.info('Seed: Pocket ' + w.ownerRef);
+    }
+  }
+
+  // ── 8) Config INTERBANK_OUT (chuyển liên ngân hàng — BẤT ĐỒNG BỘ) ──
+  if (!(await Service.findOne({ code: 'INTERBANK_OUT' }))) {
+    const s = await Service.create({
+      code: 'INTERBANK_OUT', name: 'Chuyển tiền liên ngân hàng', serviceType: 'transfer_out', currency: 'VND',
+      fieldBuilder: [
+        { name: 'CURRENCY', source: 'fixed', value: 'VND' },
+        { name: 'AMOUNT', source: 'mapping', from: 'amount' },
+        { name: 'DESTBANK', source: 'mapping', from: 'destBank' },
+        { name: 'DESTACCOUNT', source: 'mapping', from: 'destAccount' },
+        { name: 'SENDERID', source: 'query', fn: 'queryPocketByUserId', arg: 'USERID' },
+      ],
+      feeConfig: { type: 'percent', value: 0.5, min: 2000, cap: 15000 },
+      auth: { method: 'PIN' },
+      hooks: [
+        { phase: 'onPreVerify', connector: 'NAPAS', operation: 'validateAccount', inputMap: { account: 'DESTACCOUNT', bankCode: 'DESTBANK' }, outputMap: { DESTNAME: 'name' }, onFailure: 'abort' },
+        { phase: 'onSettle', connector: 'NAPAS', operation: 'payout', inputMap: { account: 'DESTACCOUNT', amount: 'AMOUNT', refId: 'TRANSREFID' }, outputMap: { PARTNERREF: 'ref', PARTNERSTATE: 'state' } },
+      ],
+      settlement: {
+        mode: 'async',
+        // chốt khi đối tác SUCCESS: tiền rời SUSPENSE -> NOSTRO
+        settleSteps: [{ amount: 'AMOUNT', debit: { level: 'systemAccount', target: 'SUSPENSE_PAYOUT' }, credit: { level: 'systemAccount', target: 'NOSTRO_NAPAS' } }],
+        // hoàn khi FAILED/timeout: SUSPENSE -> trả lại ví khách
+        reverseSteps: [{ amount: 'AMOUNT', debit: { level: 'systemAccount', target: 'SUSPENSE_PAYOUT' }, credit: { level: 'productLevel', target: 'SENDERID' } }],
+      },
+      enabled: true,
+    }).fetch();
+    const sid = String(s.id);
+    await TransField.createEach([
+      { service: sid, fieldName: 'AMOUNT', fieldFormat: 'number', isRequired: true, order: 1, errorCode: 400 },
+      { service: sid, fieldName: 'DESTBANK', fieldFormat: 'string', isRequired: true, order: 2, errorCode: 400 },
+      { service: sid, fieldName: 'DESTACCOUNT', fieldFormat: 'string', regex: '^\\d{6,19}$', isRequired: true, order: 3, errorCode: 400 },
+    ]);
+    await TransValidation.create({ service: sid, validateFunc: 'validateSenderAccountSufficiency', validateFields: 'SENDERID:AMOUNT:DEBITFEE', order: 1, errorCode: 4001 });
+    // glSteps @ verify = GIỮ tiền: khách -> SUSPENSE (amount) + khách -> SYSTEM_FEE (phí)
+    await TransDefinition.create({
+      service: sid,
+      glSteps: [
+        { order: 0, amount: 'AMOUNT', debit: { level: 'productLevel', target: 'SENDERID' }, credit: { level: 'systemAccount', target: 'SUSPENSE_PAYOUT' } },
+        { order: 1, amount: 'DEBITFEE', debit: { level: 'productLevel', target: 'SENDERID' }, credit: { level: 'systemAccount', target: 'SYSTEM_FEE' } },
+      ],
+    });
+    sails.log.info('Seed: Service INTERBANK_OUT (async)');
+  }
 };

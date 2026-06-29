@@ -116,8 +116,9 @@ async function resolveTarget(spec, body) {
   if (spec.level === 'productLevel') return body[spec.target];
   if (spec.level === 'wallet') return spec.target;
   if (spec.level === 'systemAccount') {
-    const p = await Pocket.findOne({ ownerType: 'system', ownerRef: spec.target });
-    if (!p) throw fail(500, 'Chưa seed ví hệ thống: ' + spec.target); return p.id;
+    // vai trò trỏ tới ví hệ thống / suspense / nostro / bank
+    const p = await Pocket.findOne({ ownerRef: spec.target, ownerType: ['system', 'suspense', 'nostro', 'bank'] });
+    if (!p) throw fail(500, 'Chưa seed ví vai trò: ' + spec.target); return p.id;
   }
   throw fail(500, 'glStep level chưa hỗ trợ: ' + spec.level);
 }
@@ -133,29 +134,34 @@ async function moveMoney(db, debitId, creditId, amount, refId, stepOrder, sessio
   await entries.insertOne({ _id: new ObjectId(), transRefId: refId, stepOrder, debit: debitId, credit: creditId, amount, status: 'settled', createdAt: Date.now(), updatedAt: Date.now() }, opt);
 }
 
-async function executeLedger(service, body, trailId) {
+// Ghi sổ generic: chạy `steps`, (tuỳ chọn) tạo Transaction, lật Trail sang finalStatus — ACID best-effort.
+// opts: { serviceId, finalStatus, makeTxn, txnStatus, baseOrder }
+async function runLedger(steps, body, trailId, opts) {
   const { db, client } = nativeDb();
-  const def = await TransDefinition.findOne({ service: String(service.id) });
-  const steps = (def && def.glSteps) || [];
+  let order = opts.baseOrder || 0;
   const resolved = [];
-  for (const s of steps) resolved.push({ order: s.order, amount: Number(body[s.amount] !== undefined ? body[s.amount] : s.amount), debitId: await resolveTarget(s.debit, body), creditId: await resolveTarget(s.credit, body) });
+  for (const s of (steps || [])) resolved.push({
+    order: (s.order != null ? s.order : order++),
+    amount: Number(body[s.amount] !== undefined ? body[s.amount] : s.amount),
+    debitId: await resolveTarget(s.debit, body), creditId: await resolveTarget(s.credit, body),
+  });
 
-  const txnDoc = {
-    _id: new ObjectId(), code: 'TXN' + Date.now(), transRefId: trailId, service: String(service.id),
-    sender: body.SENDERID || '', receiver: body.RECEIVERID || '', amount: Number(body.AMOUNT || 0),
+  const txnDoc = opts.makeTxn ? {
+    _id: new ObjectId(), code: 'TXN' + Date.now(), transRefId: trailId, service: String(opts.serviceId),
+    sender: body.SENDERID || '', receiver: body.RECEIVERID || body.DESTACCOUNT || '', amount: Number(body.AMOUNT || 0),
     fee: Number(body.DEBITFEE || 0), totalAmount: Number(body.TOTALAMOUNT || 0),
-    status: 'done', billerRefId: '', partnerRef: body.PARTNERREF || '', createdAt: Date.now(), updatedAt: Date.now(),
-  };
+    status: opts.txnStatus || 'done', billerRefId: '', partnerRef: body.PARTNERREF || '', createdAt: Date.now(), updatedAt: Date.now(),
+  } : null;
+
   const apply = async (session) => {
     for (const r of resolved) await moveMoney(db, r.debitId, r.creditId, r.amount, trailId, r.order, session);
-    await db.collection('transaction').insertOne(txnDoc, session ? { session } : {});
-    await db.collection('transactiontrail').updateOne({ _id: oid(trailId) }, { $set: { status: 'done', updatedAt: Date.now() } }, session ? { session } : {});
+    if (txnDoc) await db.collection('transaction').insertOne(txnDoc, session ? { session } : {});
+    await db.collection('transactiontrail').updateOne({ _id: oid(trailId) }, { $set: { status: opts.finalStatus, updatedAt: Date.now() } }, session ? { session } : {});
   };
   const session = client.startSession();
   try { await session.withTransaction(async () => { await apply(session); }); }
   catch (e) {
     await session.endSession();
-    // Lỗi nghiệp vụ hoặc trùng khoá (unique index) -> KHÔNG fallback (tránh ghi lặp)
     if (e && (e.isBusiness || e.code === 11000)) {
       if (e.code === 11000) throw fail(409, 'Giao dịch đã được ghi sổ (trùng transRefId/bút toán)');
       throw e;
@@ -164,6 +170,13 @@ async function executeLedger(service, body, trailId) {
     await apply(undefined); return txnDoc;
   }
   await session.endSession(); return txnDoc;
+}
+
+// Ghi sổ đồng bộ: đọc glSteps từ TransDefinition, tạo Transaction, lật Trail=done.
+async function executeLedger(service, body, trailId) {
+  const def = await TransDefinition.findOne({ service: String(service.id) });
+  return await runLedger((def && def.glSteps) || [], body, trailId,
+    { serviceId: service.id, finalStatus: 'done', makeTxn: true, txnStatus: 'done', baseOrder: 0 });
 }
 
 async function loadEnabledService(code) {
@@ -245,7 +258,21 @@ async function processVerify(transRefId, credential, ctx) {
       if (!(await bcrypt.compare(`${credential}`, ctx.user.pinHash))) throw fail(401, 'PIN không đúng');
     }
     await validateBusiness(service, body);
-    await runHooks(service, 'onPreVerify', body);   // vd verifyOtp / charge thẻ
+    await runHooks(service, 'onPreVerify', body);   // vd validateAccount / verifyOtp / charge thẻ
+
+    const settlement = service.settlement || { mode: 'sync' };
+    if (settlement.mode === 'async') {
+      // GIỮ tiền: ghi glSteps (khách -> SUSPENSE + phí -> SYSTEM), Trail -> processing, CHƯA tạo biên lai
+      const def = await TransDefinition.findOne({ service: String(service.id) });
+      await runLedger((def && def.glSteps) || [], body, transRefId,
+        { serviceId: service.id, finalStatus: 'processing', makeTxn: false, baseOrder: 0 });
+      await TransactionTrail.updateOne(transRefId).set({ outputMessage: { TRANSBODY: body } });
+      // Gửi lệnh ra đối tác (onSettle). Timeout/lỗi mạng -> GIỮ processing để đối soát (không kết luận)
+      try { await runHooks(service, 'onSettle', body); }
+      catch (e) { sails.log.warn('onSettle lỗi (giữ processing để đối soát): ' + e.message); }
+      return { transRefId, status: 'processing', destName: body.DESTNAME || null, partnerRef: body.PARTNERREF || null };
+    }
+
     const txn = await executeLedger(service, body, transRefId);   // flip processing -> done (+unique index chống ghi trùng)
     const effects = await applyEffects(service, body);
     return { transRefId, status: 'done', transaction: { code: txn.code, amount: txn.amount, fee: txn.fee, total: txn.totalAmount }, effects };
@@ -257,4 +284,34 @@ async function processVerify(transRefId, credential, ctx) {
   }
 }
 
-module.exports = { processRequest, processConfirm, processVerify };
+// RUNTIME 4 — Callback: đối tác báo kết quả giao dịch async -> chốt (done) hoặc hoàn (reversed).
+// Idempotent: chỉ xử lý khi Trail đang 'processing'; gọi trùng -> trả trạng thái hiện tại.
+async function processCallback(connectorCode, payload) {
+  const refId = payload.refId || payload.transRefId;
+  if (!refId) throw fail(400, 'Thiếu refId');
+  const trail = await TransactionTrail.findOne(refId);
+  if (!trail) throw fail(404, 'Không tìm thấy giao dịch');
+  if (trail.status !== 'processing') return await finalResultOf(trail);   // đã chốt rồi -> idempotent
+
+  const service = await Service.findOne(trail.service);
+  const settlement = service.settlement || {};
+  const body = (trail.outputMessage && trail.outputMessage.TRANSBODY) || {};
+  body.TRANSREFID = refId;
+  const state = `${payload.state || ''}`.toUpperCase();
+
+  if (state === 'SUCCESS') {
+    // chốt: SUSPENSE -> NOSTRO (tiền thực sự rời hệ thống), tạo biên lai, Trail -> done
+    await runLedger(settlement.settleSteps || [], body, refId,
+      { serviceId: service.id, finalStatus: 'done', makeTxn: true, txnStatus: 'done', baseOrder: 10 });
+    return { transRefId: refId, status: 'done' };
+  }
+  if (state === 'FAILED') {
+    // hoàn: SUSPENSE -> SENDER (hoàn tiền), Trail -> reversed
+    await runLedger(settlement.reverseSteps || [], body, refId,
+      { serviceId: service.id, finalStatus: 'reversed', makeTxn: true, txnStatus: 'reversed', baseOrder: 20 });
+    return { transRefId: refId, status: 'reversed' };
+  }
+  return { transRefId: refId, status: 'processing', note: 'state chưa rõ — giữ processing để đối soát' };
+}
+
+module.exports = { processRequest, processConfirm, processVerify, processCallback };

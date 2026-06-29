@@ -11,6 +11,7 @@ module.exports.routes = {
   'POST /api/txn/request': { action: 'txn/request' },
   'POST /api/txn/confirm': { action: 'txn/confirm' },
   'POST /api/txn/verify':  { action: 'txn/verify' },
+  'POST /api/txn/callback/:connector': { action: 'txn/callback' },
 
   'POST /mock/vcb/:op':   { action: 'mock/vcb' },
   'POST /mock/napas/:op': { action: 'mock/napas' },
