@@ -1,11 +1,5 @@
 import { createContext, useContext, useState } from 'react';
 
-/**
- * AuthContext — lưu token + thông tin user (customer/officer) cho cả app.
- * (CÀI ĐẦY ĐỦ Ở NGÀY 11.) Hiện là khung tối thiểu để app chạy.
- *
- * Lưu ý: đây là app chạy local nên dùng localStorage để nhớ đăng nhập là OK.
- */
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {

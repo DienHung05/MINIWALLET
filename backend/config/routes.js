@@ -18,4 +18,6 @@ module.exports.routes = {
   'POST /mock/visa/:op':  { action: 'mock/visa' },
 
   'POST /api/admin/connector/test': { action: 'admin/test-connector' },
+  'POST /api/admin/recover':        { action: 'admin/recover' },
+  'GET  /api/admin/integrity':      { action: 'admin/integrity' },
 };
