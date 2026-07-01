@@ -10,11 +10,13 @@ module.exports.policies = {
   'txn/request': 'isAuthenticated',
   'txn/confirm': 'isAuthenticated',
   'txn/verify': 'isAuthenticated',
-  'txn/callback': true,                  // đối tác gọi về (demo: công khai; thật: verify chữ ký)
+  'txn/callback': true,                  
 
   'mock/vcb': true,
   'mock/napas': true,
   'mock/visa': true,
 
   'admin/test-connector': ['isAuthenticated', 'isOfficer'],
+  'admin/recover': ['isAuthenticated', 'isOfficer'],
+  'admin/integrity': ['isAuthenticated', 'isOfficer'],
 };

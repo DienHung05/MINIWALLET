@@ -1,27 +1,31 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import api from '../../api/client.js';
+import { useAuth } from '../../auth/AuthContext.jsx';
 
-/**
- * OfficerLogin — STUB (cài đầy đủ ở Ngày 11).
- * Mục tiêu: gọi POST /api/officer/login { username, password } -> token -> vào khu admin.
- */
 export default function OfficerLogin() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('admin'); const [password, setPassword] = useState('admin123');
+  const [err, setErr] = useState(''); const [loading, setLoading] = useState(false);
+  const auth = useAuth(); const nav = useNavigate();
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    // TODO Ngày 11
-    alert('Chưa cài đăng nhập Officer (làm ở Ngày 11).');
+  async function submit(e) {
+    e.preventDefault(); setErr(''); setLoading(true);
+    try {
+      const res = await api.post('/officer/login', { username, password });
+      auth.login({ token: res.token, user: { role: 'officer', username } });
+      nav('/admin');
+    } catch (e) { setErr(e.message); } finally { setLoading(false); }
   }
 
   return (
     <div className="card">
-      <h2>Đăng nhập Officer (Admin)</h2>
-      <form onSubmit={handleSubmit}>
+      <h2>Đăng nhập Officer</h2>
+      <form onSubmit={submit}>
         <input placeholder="Tên đăng nhập" value={username} onChange={(e) => setUsername(e.target.value)} />
         <input placeholder="Mật khẩu" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        <button type="submit">Đăng nhập</button>
+        <button disabled={loading}>{loading ? 'Đang...' : 'Đăng nhập'}</button>
       </form>
+      {err && <p style={{ color: 'crimson' }}>{err}</p>}
     </div>
   );
 }

@@ -172,4 +172,12 @@ module.exports.bootstrap = async function () {
     });
     sails.log.info('Seed: Service INTERBANK_OUT (async)');
   }
+
+  // ── 9) Janitor recovery: chạy 1 lần lúc lift + định kỳ mỗi 60s ──
+  try { await sails.helpers.recover(); } catch (e) { sails.log.warn('Recover lúc lift lỗi: ' + e.message); }
+  if (!global.__recoverTimer) {
+    global.__recoverTimer = setInterval(() => {
+      sails.helpers.recover().catch((e) => sails.log.warn('Recover định kỳ lỗi: ' + e.message));
+    }, 60 * 1000);
+  }
 };
