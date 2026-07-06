@@ -6,6 +6,8 @@ export default function AdminDashboard() {
   const [out, setOut] = useState(''); const [err, setErr] = useState('');
   const [refId, setRefId] = useState(''); const [state, setState] = useState('SUCCESS');
   const [trails, setTrails] = useState([]);
+  const [connectors, setConnectors] = useState([]);
+  const [selectedTrail, setSelectedTrail] = useState(null);
   const [trailStatus, setTrailStatus] = useState('processing');
   const [connectorCode, setConnectorCode] = useState('VCB');
   const [operation, setOperation] = useState('sendOtp');
@@ -21,7 +23,12 @@ export default function AdminDashboard() {
     try { const r = await api.get(`/admin/trails?status=${encodeURIComponent(status)}&limit=30`); setTrails(r.trails || []); }
     catch (e) { setErr(e.message); }
   }
-  useEffect(() => { loadIntegrity(); loadTrails(); }, []);
+  async function loadConnectors() {
+    setErr('');
+    try { const r = await api.get('/admin/connectors'); setConnectors(r.connectors || []); }
+    catch (e) { setErr(e.message); }
+  }
+  useEffect(() => { loadIntegrity(); loadTrails(); loadConnectors(); }, []);
 
   async function runRecover() {
     try { const r = await api.post('/admin/recover'); setOut('Recover: ' + JSON.stringify(r.summary)); loadIntegrity(); loadTrails(); }
@@ -72,14 +79,32 @@ export default function AdminDashboard() {
       </div>
 
       <h3 style={{ marginTop: 20 }}>Test connector</h3>
+      {connectors.length > 0 && (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Mã</th><th>Loại</th><th>Base URL</th><th>Thao tác hỗ trợ</th><th>Trạng thái</th></tr></thead>
+            <tbody>
+              {connectors.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.code}</td>
+                  <td>{c.kind}</td>
+                  <td><code>{c.baseUrl}</code></td>
+                  <td>{(c.operations || []).join(', ')}</td>
+                  <td><span className={`badge ${c.enabled ? 'active' : 'failed'}`}>{c.enabled ? 'enabled' : 'disabled'}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <div className="grid two">
         <select value={connectorCode} onChange={(e) => setConnectorCode(e.target.value)}>
-          <option>VCB</option><option>VISA</option><option>NAPAS</option>
+          {connectors.length > 0 ? connectors.map((c) => <option key={c.code}>{c.code}</option>) : <><option>VCB</option><option>VISA</option><option>NAPAS</option></>}
         </select>
-        <input placeholder="Operation" value={operation} onChange={(e) => setOperation(e.target.value)} />
+        <input placeholder="Tên thao tác" value={operation} onChange={(e) => setOperation(e.target.value)} />
       </div>
       <textarea rows="4" value={args} onChange={(e) => setArgs(e.target.value)} />
-      <button onClick={testConnector}>Gọi thử connector</button>
+      <button onClick={testConnector}>Gọi thử thao tác</button>
 
       <h3 style={{ marginTop: 20 }}>Mock callback NAPAS (cho giao dịch async)</h3>
       <input placeholder="transRefId (đang processing)" value={refId} onChange={(e) => setRefId(e.target.value)} />
@@ -115,12 +140,24 @@ export default function AdminDashboard() {
                   <td>{Number(t.amount || 0).toLocaleString('vi-VN')}</td>
                   <td>{t.partnerRef || t.partnerState || '-'}</td>
                   <td><code>{t.transRefId}</code></td>
-                  <td><button type="button" onClick={() => setRefId(t.transRefId)}>Chọn</button></td>
+                  <td>
+                    <button type="button" onClick={() => setRefId(t.transRefId)}>Chọn</button>{' '}
+                    <button type="button" onClick={() => setSelectedTrail(t)}>Chi tiết</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {selectedTrail && (
+        <>
+          <h3 style={{ marginTop: 20 }}>Chi tiết trail</h3>
+          <pre style={{ background: '#f1f5f9', padding: 10, borderRadius: 6, marginTop: 12 }}>
+            {JSON.stringify(selectedTrail, null, 2)}
+          </pre>
+        </>
       )}
 
       {out && <pre style={{ background: '#f1f5f9', padding: 10, borderRadius: 6, marginTop: 12 }}>{out}</pre>}

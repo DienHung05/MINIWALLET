@@ -6,6 +6,16 @@ function safeBody(body) {
   return out;
 }
 
+function safeInput(input) {
+  const out = Object.assign({}, input || {});
+  out.parameters = safeBody(out.parameters || {});
+  return out;
+}
+
+function iso(ms) {
+  return ms ? new Date(ms).toISOString() : '';
+}
+
 module.exports = async function trails(req, res) {
   const status = req.param('status') || 'processing';
   const limit = Math.min(Math.max(Number(req.param('limit') || 30), 1), 100);
@@ -30,10 +40,13 @@ module.exports = async function trails(req, res) {
       fee: body.DEBITFEE || 0,
       partnerRef: body.PARTNERREF || '',
       partnerState: body.PARTNERSTATE || '',
-      input: t.inputMessage || {},
+      input: safeInput(t.inputMessage || {}),
       body,
+      stepLog: t.transStepLog || [],
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
+      createdAtText: iso(t.createdAt),
+      updatedAtText: iso(t.updatedAt),
     });
   }
 
