@@ -61,9 +61,10 @@ module.exports = {
 
         const okBusiness = (json.err === undefined || json.err === 200);
         return exits.success({
-            ok: res.ok, okBusiness,
+            ok: res.ok && okBusiness,
+            okBusiness,
             status: res.status,
-            data: extractMap(op.data, json),
+            data: extractMap(op.response || op.data || {}, json),
             raw: json,
         }); 
     },

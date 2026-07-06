@@ -10,6 +10,7 @@ module.exports = {
     hooks: { type: 'json', defaultsTo: [] },           
     effects: { type: 'json', defaultsTo: [] },       
     settlement: { type: 'json', defaultsTo: { mode: 'sync' } }, 
+    concurrency: { type: 'string', isIn: ['locked', 'optimistic'], defaultsTo: 'locked' },
     enabled: { type: 'boolean', defaultsTo: true },
   },
 };

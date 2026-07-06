@@ -1,11 +1,13 @@
 module.exports = {
-    code: { type: String, required: true, unique: true },
-    name: { type: String, defaultsTo: '' },
-    kind: { type: String, defaultsTo: '' },
-    baseUrl: { type: String, required: true },
+  attributes: {
+    code: { type: 'string', required: true, unique: true },
+    name: { type: 'string', defaultsTo: '' },
+    kind: { type: 'string', defaultsTo: '' },
+    baseUrl: { type: 'string', required: true },
     auth: { type: 'json', defaultsTo: {} },
     operations: { type: 'json', defaultsTo: {} },
     timeoutMs: { type: 'number', defaultsTo: 8000 },
     maxRetries: { type: 'number', defaultsTo: 0 },
     enabled: { type: 'boolean', defaultsTo: true },
-}
+  },
+};
