@@ -217,7 +217,7 @@ async function processRequest(serviceCode, parameters, ctx) {
   const service = await loadEnabledService(serviceCode);
   const body = await buildFields(service, { userId: ctx.userId, parameters });
   await validateFields(service, body);
-  await runHooks(service, 'onRequest', body);     // vd Bill: inquiry
+  await runHooks(service, 'onRequest', body);    
   computeFee(service, body);
   await validateBusiness(service, body);
   const trail = await TransactionTrail.create({

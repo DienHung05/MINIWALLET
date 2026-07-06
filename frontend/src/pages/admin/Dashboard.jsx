@@ -10,6 +10,7 @@ export default function AdminDashboard() {
   const [connectorCode, setConnectorCode] = useState('VCB');
   const [operation, setOperation] = useState('sendOtp');
   const [args, setArgs] = useState('{"account":"0123456789"}');
+  const [statementBalance, setStatementBalance] = useState('');
 
   async function loadIntegrity() {
     setErr('');
@@ -40,6 +41,14 @@ export default function AdminDashboard() {
       setErr(e.message || 'JSON args không hợp lệ');
     }
   }
+  async function runReconcile() {
+    setErr('');
+    try {
+      const body = statementBalance === '' ? {} : { statementBalance: Number(statementBalance) };
+      const r = await api.post('/admin/reconcile', body);
+      setOut('Đối soát: ' + JSON.stringify(r.report, null, 2));
+    } catch (e) { setErr(e.message); }
+  }
 
   return (
     <div className="card">
@@ -55,6 +64,12 @@ export default function AdminDashboard() {
       )}
       <button onClick={loadIntegrity}>Làm mới</button>{' '}
       <button onClick={runRecover}>Chạy Janitor (recover)</button>
+
+      <h3 style={{ marginTop: 20 }}>Đối soát NAPAS</h3>
+      <div className="grid two">
+        <input placeholder="Số dư sao kê mock (để trống = khớp sổ)" type="number" value={statementBalance} onChange={(e) => setStatementBalance(e.target.value)} />
+        <button onClick={runReconcile}>Chạy đối soát</button>
+      </div>
 
       <h3 style={{ marginTop: 20 }}>Test connector</h3>
       <div className="grid two">

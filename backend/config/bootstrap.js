@@ -86,6 +86,7 @@ module.exports.bootstrap = async function () {
       validateAccount: { method: 'POST', path: '/validate', request: { account: '$.account', bankCode: '$.bankCode' }, response: { name: '$.data.name' } },
       payout: { method: 'POST', path: '/payout', request: { account: '$.account', amount: '$.amount', refId: '$.refId' }, response: { ref: '$.data.ref', state: '$.data.state' }, idempotent: true },
       status: { method: 'POST', path: '/status', request: { refId: '$.refId' }, response: { state: '$.data.state' } },
+      statement: { method: 'POST', path: '/statement', request: { balance: '$.balance' }, response: { balance: '$.data.balance', currency: '$.data.currency' } },
     } },
   ];
   for (const c of connectors) {
