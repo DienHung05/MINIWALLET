@@ -7,7 +7,7 @@ const SERVICES = {
     INTERBANK_OUT: { label: 'Chuyển tiền liên ngân hàng', fields: [['destBank', 'Mã ngân hàng'], ['destAccount', 'Số tài khoản'], ['amount', 'Số tiền', 'number']] },
     LINK_BANK: { label: 'Liên kết ngân hàng', fields: [['bankCode', 'Mã ngân hàng'], ['accountNo', 'Số tài khoản']] },
     LINK_CARD: { label: 'Liên kết thẻ', fields: [['cardNumber', 'Số thẻ'], ['holderName', 'Tên chủ thẻ']] },
-    CARD_TOPUP: { label: 'Nạp tiền từ thẻ', fields: [['instrumentId', 'Instrument ID thẻ'], ['amount', 'Số tiền', 'number']] },
+    CARD_TOPUP: { label: 'Nạp tiền từ thẻ', fields: [['instrumentId', 'Mã nguồn liên kết của thẻ'], ['amount', 'Số tiền', 'number']], hint: 'Mã này lấy ở bảng nguồn liên kết trong trang ví của tôi.' },
 };
 
 function credentialPlaceholder(authMethod) {
@@ -63,6 +63,7 @@ export default function NewTransaction() {
                         <input key={name} placeholder={label} type={type || 'text'} 
                         value={params[name] || ''} onChange={(e) => set(name, type === 'number' ? Number(e.target.value) : e.target.value)} />
                     ))}
+                    {SERVICES[serviceCode].hint && <p className="muted">{SERVICES[serviceCode].hint}</p>}
                     <button disabled={busy}>{busy ? '...' : 'Tiếp tục'}</button>
                 </form>
             )}

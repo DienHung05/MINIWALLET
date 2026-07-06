@@ -23,4 +23,5 @@ module.exports.routes = {
   'POST /api/admin/recover':        { action: 'admin/recover' },
   'GET  /api/admin/integrity':      { action: 'admin/integrity' },
   'GET  /api/admin/trails':         { action: 'admin/trails' },
+  'POST /api/admin/reconcile':      { action: 'admin/reconcile' },
 };
