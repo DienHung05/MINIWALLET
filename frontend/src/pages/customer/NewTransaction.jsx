@@ -6,7 +6,16 @@ const SERVICES = {
     P2P: { label: 'Chuyển tiền P2P', fields: [['receiverPhone', 'SĐT người nhận'], ['amount', 'Số tiền', 'number']] },
     INTERBANK_OUT: { label: 'Chuyển tiền liên ngân hàng', fields: [['destBank', 'Mã ngân hàng'], ['destAccount', 'Số tài khoản'], ['amount', 'Số tiền', 'number']] },
     LINK_BANK: { label: 'Liên kết ngân hàng', fields: [['bankCode', 'Mã ngân hàng'], ['accountNo', 'Số tài khoản']] },
+    LINK_CARD: { label: 'Liên kết thẻ', fields: [['cardNumber', 'Số thẻ'], ['holderName', 'Tên chủ thẻ']] },
+    CARD_TOPUP: { label: 'Nạp tiền từ thẻ', fields: [['instrumentId', 'Instrument ID thẻ'], ['amount', 'Số tiền', 'number']] },
 };
+
+function credentialPlaceholder(authMethod) {
+    if (authMethod === 'OTP') return 'OTP';
+    if (authMethod === '3DS') return '3DS';
+    if (authMethod === 'NONE') return 'Không cần xác thực';
+    return 'Nhập PIN';
+}
 
 export default function NewTransaction() {
     const [serviceCode, setServiceCode] = useState('P2P');
@@ -62,7 +71,7 @@ export default function NewTransaction() {
                 <form onSubmit={doVerify}>
                     <p className="muted">Mã giao dịch: {preview?.transRefId}</p>
                     {preview.amount != null && <p>Số tiền: <b>{Number(preview.amount).toLocaleString('vi-VN')}</b> · Phí: <b>{Number(preview.fee).toLocaleString('vi-VN')}</b> · Tổng: <b>{Number(preview.total).toLocaleString('vi-VN')}</b></p>}
-                    <input placeholder={authMethod === 'OTP' ? 'OTP (mock: 123456)' : 'Nhập PIN'} type="password" value={cred} onChange={(e) => setCred(e.target.value)} />
+                    <input placeholder={credentialPlaceholder(authMethod)} type="password" value={cred} onChange={(e) => setCred(e.target.value)} />
                     <button disabled={busy}>{busy ? 'Đang xử lý...' : `Xác nhận (${authMethod})`}</button>{' '}
                     <button type="button" onClick={reset}>Huỷ</button>
                 </form>
