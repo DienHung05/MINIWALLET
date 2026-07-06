@@ -9,6 +9,14 @@ async function checksumOf(p) {
   return await sails.helpers.computeChecksum(p.balance, p.ownerType, p.ownerRef, p.currency || 'VND');
 }
 
+async function appendTrailLog(trailId, entry) {
+  const { db } = nativeDb();
+  await db.collection('transactiontrail').updateOne(
+    { _id: oid(trailId) },
+    { $push: { transStepLog: Object.assign({ at: Date.now() }, entry) }, $set: { updatedAt: Date.now() } }
+  );
+}
+
 const QUERY_FNS = {
   queryPocketByUserId: async (userId) => {
     const c = await Customer.findOne(userId);
@@ -214,6 +222,7 @@ async function processConfirm(transRefId, ctx) {
   const body = (trail.outputMessage && trail.outputMessage.TRANSBODY) || {}; body.TRANSREFID = transRefId;
   await runHooks(service, 'onConfirm', body);      // vd Link bank: sendOtp -> OTPREF
   await TransactionTrail.updateOne(transRefId).set({ outputMessage: { TRANSBODY: body } });
+  await appendTrailLog(transRefId, { step: 'confirm', status: 'done', authMethod: (service.auth && service.auth.method) || 'NONE' });
   return { transRefId, authMethod: (service.auth && service.auth.method) || 'NONE' };
 }
 
@@ -240,6 +249,7 @@ async function processVerify(transRefId, credential, ctx) {
     if (t && ['done', 'failed', 'reversed', 'expired'].includes(t.status)) return await finalResultOf(t);
     throw fail(409, 'Giao dịch đang được xử lý, vui lòng đợi');
   }
+  await appendTrailLog(transRefId, { step: 'verify', status: 'claimed' });
 
   const service = await Service.findOne(trail0.service);
   const stored = (trail0.outputMessage && trail0.outputMessage.TRANSBODY) || {};
@@ -277,16 +287,20 @@ async function processVerify(transRefId, credential, ctx) {
       try {
         await runHooks(service, 'onSettle', body);
         await TransactionTrail.updateOne(transRefId).set({ outputMessage: { TRANSBODY: body } });
+        await appendTrailLog(transRefId, { step: 'settle', status: 'submitted', partnerRef: body.PARTNERREF || '', partnerState: body.PARTNERSTATE || '' });
       }
       catch (e) { sails.log.warn('onSettle lỗi (giữ processing để đối soát): ' + e.message); }
+      await appendTrailLog(transRefId, { step: 'verify', status: 'processing' });
       return { transRefId, status: 'processing', destName: body.DESTNAME || null, partnerRef: body.PARTNERREF || null };
     }
 
     const ledger = await executeLedger(service, body, transRefId);   // flip processing -> done (+unique index chống ghi trùng)
     const txn = ledger.txn;
+    await appendTrailLog(transRefId, { step: 'verify', status: 'done', transactionCode: txn.code });
     return { transRefId, status: 'done', transaction: { code: txn.code, amount: txn.amount, fee: txn.fee, total: txn.totalAmount }, effects: ledger.effects };
   } catch (e) {
     await TransactionTrail.updateOne({ id: transRefId, status: 'processing' }).set({ status: 'failed' });
+    await appendTrailLog(transRefId, { step: 'verify', status: 'failed', message: e.message || 'verify failed' });
     throw e;
   } finally {
     if (locked) await Pocket.updateOne({ id: senderId }).set({ state: 'idle' });
@@ -301,6 +315,7 @@ async function processCallback(connectorCode, payload) {
   const trail = await TransactionTrail.findOne(refId);
   if (!trail) throw fail(404, 'Không tìm thấy giao dịch');
   if (trail.status !== 'processing') return await finalResultOf(trail);   // đã chốt rồi -> idempotent
+  await appendTrailLog(refId, { step: 'callback', status: 'received', connector: connectorCode, state: payload.state || '' });
 
   const service = await Service.findOne(trail.service);
   const settlement = service.settlement || {};
@@ -310,14 +325,26 @@ async function processCallback(connectorCode, payload) {
 
   if (state === 'SUCCESS') {
     // chốt: SUSPENSE -> NOSTRO (tiền thực sự rời hệ thống), tạo biên lai, Trail -> done
-    await runLedger(settlement.settleSteps || [], body, refId,
-      { serviceId: service.id, finalStatus: 'done', makeTxn: true, txnStatus: 'done', baseOrder: 10 });
+    try {
+      await runLedger(settlement.settleSteps || [], body, refId,
+        { serviceId: service.id, finalStatus: 'done', makeTxn: true, txnStatus: 'done', baseOrder: 10 });
+    } catch (e) {
+      if (e.errCode === 409) return await finalResultOf(await TransactionTrail.findOne(refId));
+      throw e;
+    }
+    await appendTrailLog(refId, { step: 'callback', status: 'done', connector: connectorCode });
     return { transRefId: refId, status: 'done' };
   }
   if (state === 'FAILED') {
     // hoàn: SUSPENSE -> SENDER (hoàn tiền), Trail -> reversed
-    await runLedger(settlement.reverseSteps || [], body, refId,
-      { serviceId: service.id, finalStatus: 'reversed', makeTxn: true, txnStatus: 'reversed', baseOrder: 20 });
+    try {
+      await runLedger(settlement.reverseSteps || [], body, refId,
+        { serviceId: service.id, finalStatus: 'reversed', makeTxn: true, txnStatus: 'reversed', baseOrder: 20 });
+    } catch (e) {
+      if (e.errCode === 409) return await finalResultOf(await TransactionTrail.findOne(refId));
+      throw e;
+    }
+    await appendTrailLog(refId, { step: 'callback', status: 'reversed', connector: connectorCode });
     return { transRefId: refId, status: 'reversed' };
   }
   return { transRefId: refId, status: 'processing', note: 'state chưa rõ — giữ processing để đối soát' };

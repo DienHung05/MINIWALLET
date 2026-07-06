@@ -22,4 +22,5 @@ module.exports.policies = {
   'admin/recover': ['isAuthenticated', 'isOfficer'],
   'admin/integrity': ['isAuthenticated', 'isOfficer'],
   'admin/trails': ['isAuthenticated', 'isOfficer'],
+  'admin/connectors': ['isAuthenticated', 'isOfficer'],
 };

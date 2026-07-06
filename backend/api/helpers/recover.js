@@ -42,8 +42,9 @@ module.exports = {
         }
         if (state === 'SUCCESS') { await engine.processCallback(settleHook && settleHook.connector, { refId: t.id, state: 'SUCCESS' }); summary.settled++; }
         else if (state === 'FAILED') { await engine.processCallback(settleHook && settleHook.connector, { refId: t.id, state: 'FAILED' }); summary.reversed++; }
-        else if (now - new Date(t.updatedAt).getTime() > inputs.reverseAfterMs) { // unknown quá lâu -> hoàn tiền
-          await engine.processCallback(settleHook && settleHook.connector, { refId: t.id, state: 'FAILED' }); summary.reversed++;
+        else if (now - Number(t.updatedAt || t.createdAt || 0) > inputs.reverseAfterMs) { // unknown quá lâu -> theo chính sách timeout
+          if ((settlement.onTimeout || 'reverse') === 'keepProcessing') summary.leftProcessing++;
+          else { await engine.processCallback(settleHook && settleHook.connector, { refId: t.id, state: 'FAILED' }); summary.reversed++; }
         } else summary.leftProcessing++;
       } else {                                     // sync, chưa có Transaction -> crash trước commit
         await TransactionTrail.updateOne({ id: t.id, status: 'processing' }).set({ status: 'failed' });
