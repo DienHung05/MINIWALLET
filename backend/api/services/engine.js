@@ -94,18 +94,23 @@ async function runHooks(service, phase, body) {
 }
 
 // ── EFFECT: side-effect phi tiền tệ (tạo Instrument) ──
-async function applyEffects(service, body) {
+async function applyEffects(service, body, db, session) {
+  if (!db) db = nativeDb().db;
   const results = [];
+  const opt = session ? { session } : {};
   for (const eff of (service.effects || [])) {
     if (eff.type === 'createInstrument') {
       const w = eff.with || {};
-      const inst = await Instrument.create({
+      const doc = {
+        _id: new ObjectId(),
         customer: body.USERID, type: w.type || 'bankAccount', connector: w.connector || '',
         token: body[w.tokenVar] || '', holderName: body[w.nameVar] || '',
         maskedNumber: mask(body[w.maskedVar]), status: 'active',
         meta: { bankCode: body.BANKCODE },
-      }).fetch();
-      results.push({ instrumentId: inst.id, masked: inst.maskedNumber });
+        createdAt: Date.now(), updatedAt: Date.now(),
+      };
+      await db.collection('instrument').insertOne(doc, opt);
+      results.push({ instrumentId: String(doc._id), masked: doc.maskedNumber, type: doc.type, connector: doc.connector });
     }
   }
   return results;
@@ -116,7 +121,6 @@ async function resolveTarget(spec, body) {
   if (spec.level === 'productLevel') return body[spec.target];
   if (spec.level === 'wallet') return spec.target;
   if (spec.level === 'systemAccount') {
-    // vai trò trỏ tới ví hệ thống / suspense / nostro / bank
     const p = await Pocket.findOne({ ownerRef: spec.target, ownerType: ['system', 'suspense', 'nostro', 'bank'] });
     if (!p) throw fail(500, 'Chưa seed ví vai trò: ' + spec.target); return p.id;
   }
@@ -135,7 +139,7 @@ async function moveMoney(db, debitId, creditId, amount, refId, stepOrder, sessio
 }
 
 // Ghi sổ generic: chạy `steps`, (tuỳ chọn) tạo Transaction, lật Trail sang finalStatus — ACID best-effort.
-// opts: { serviceId, finalStatus, makeTxn, txnStatus, baseOrder }
+// opts: { serviceId, finalStatus, makeTxn, txnStatus, baseOrder, effectsService }
 async function runLedger(steps, body, trailId, opts) {
   const { db, client } = nativeDb();
   let order = opts.baseOrder || 0;
@@ -153,9 +157,11 @@ async function runLedger(steps, body, trailId, opts) {
     status: opts.txnStatus || 'done', billerRefId: '', partnerRef: body.PARTNERREF || '', createdAt: Date.now(), updatedAt: Date.now(),
   } : null;
 
+  let effects = [];
   const apply = async (session) => {
     for (const r of resolved) await moveMoney(db, r.debitId, r.creditId, r.amount, trailId, r.order, session);
     if (txnDoc) await db.collection('transaction').insertOne(txnDoc, session ? { session } : {});
+    if (opts.effectsService) effects = await applyEffects(opts.effectsService, body, db, session);
     await db.collection('transactiontrail').updateOne({ _id: oid(trailId) }, { $set: { status: opts.finalStatus, updatedAt: Date.now() } }, session ? { session } : {});
   };
   const session = client.startSession();
@@ -167,16 +173,16 @@ async function runLedger(steps, body, trailId, opts) {
       throw e;
     }
     sails.log.warn('Transaction không khả dụng, ghi sổ không-transaction: ' + e.message);
-    await apply(undefined); return txnDoc;
+    await apply(undefined); return { txn: txnDoc, effects };
   }
-  await session.endSession(); return txnDoc;
+  await session.endSession(); return { txn: txnDoc, effects };
 }
 
 // Ghi sổ đồng bộ: đọc glSteps từ TransDefinition, tạo Transaction, lật Trail=done.
 async function executeLedger(service, body, trailId) {
   const def = await TransDefinition.findOne({ service: String(service.id) });
   return await runLedger((def && def.glSteps) || [], body, trailId,
-    { serviceId: service.id, finalStatus: 'done', makeTxn: true, txnStatus: 'done', baseOrder: 0 });
+    { serviceId: service.id, finalStatus: 'done', makeTxn: true, txnStatus: 'done', baseOrder: 0, effectsService: service });
 }
 
 async function loadEnabledService(code) {
@@ -268,14 +274,17 @@ async function processVerify(transRefId, credential, ctx) {
         { serviceId: service.id, finalStatus: 'processing', makeTxn: false, baseOrder: 0 });
       await TransactionTrail.updateOne(transRefId).set({ outputMessage: { TRANSBODY: body } });
       // Gửi lệnh ra đối tác (onSettle). Timeout/lỗi mạng -> GIỮ processing để đối soát (không kết luận)
-      try { await runHooks(service, 'onSettle', body); }
+      try {
+        await runHooks(service, 'onSettle', body);
+        await TransactionTrail.updateOne(transRefId).set({ outputMessage: { TRANSBODY: body } });
+      }
       catch (e) { sails.log.warn('onSettle lỗi (giữ processing để đối soát): ' + e.message); }
       return { transRefId, status: 'processing', destName: body.DESTNAME || null, partnerRef: body.PARTNERREF || null };
     }
 
-    const txn = await executeLedger(service, body, transRefId);   // flip processing -> done (+unique index chống ghi trùng)
-    const effects = await applyEffects(service, body);
-    return { transRefId, status: 'done', transaction: { code: txn.code, amount: txn.amount, fee: txn.fee, total: txn.totalAmount }, effects };
+    const ledger = await executeLedger(service, body, transRefId);   // flip processing -> done (+unique index chống ghi trùng)
+    const txn = ledger.txn;
+    return { transRefId, status: 'done', transaction: { code: txn.code, amount: txn.amount, fee: txn.fee, total: txn.totalAmount }, effects: ledger.effects };
   } catch (e) {
     await TransactionTrail.updateOne({ id: transRefId, status: 'processing' }).set({ status: 'failed' });
     throw e;

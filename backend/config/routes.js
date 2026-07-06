@@ -6,6 +6,8 @@ module.exports.routes = {
   'POST /api/officer/login':     { action: 'officer/login' },
   'GET  /api/me':                { action: 'me' },
   'GET  /api/customer/balance':  { action: 'customer/balance' },
+  'GET  /api/customer/instruments': { action: 'customer/instruments' },
+  'GET  /api/customer/history':     { action: 'customer/history' },
 
   // Engine 3 runtime 
   'POST /api/txn/request': { action: 'txn/request' },
@@ -20,4 +22,5 @@ module.exports.routes = {
   'POST /api/admin/connector/test': { action: 'admin/test-connector' },
   'POST /api/admin/recover':        { action: 'admin/recover' },
   'GET  /api/admin/integrity':      { action: 'admin/integrity' },
+  'GET  /api/admin/trails':         { action: 'admin/trails' },
 };

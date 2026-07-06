@@ -7,6 +7,8 @@ module.exports.policies = {
 
   me: 'isAuthenticated',
   'customer/balance': 'isAuthenticated',
+  'customer/instruments': 'isAuthenticated',
+  'customer/history': 'isAuthenticated',
   'txn/request': 'isAuthenticated',
   'txn/confirm': 'isAuthenticated',
   'txn/verify': 'isAuthenticated',
@@ -19,4 +21,5 @@ module.exports.policies = {
   'admin/test-connector': ['isAuthenticated', 'isOfficer'],
   'admin/recover': ['isAuthenticated', 'isOfficer'],
   'admin/integrity': ['isAuthenticated', 'isOfficer'],
+  'admin/trails': ['isAuthenticated', 'isOfficer'],
 };
