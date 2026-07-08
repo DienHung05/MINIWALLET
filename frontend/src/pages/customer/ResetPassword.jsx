@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api/client.js';
+import AuthLayout from '../../components/AuthLayout.jsx';
+import { Alert, Button, Field } from '../../components/ui.jsx';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -29,31 +31,27 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="auth-card">
-      <div className="auth-header">
-        <p className="eyebrow">Bảo mật</p>
-        <h2>Đặt lại mật khẩu</h2>
-        <p className="muted">Nhập mã đặt lại và mật khẩu mới cho tài khoản của bạn.</p>
-      </div>
+    <AuthLayout
+      eyebrow="Bảo mật"
+      title="Đặt lại mật khẩu"
+      subtitle="Nhập mã đặt lại và mật khẩu mới cho tài khoản của bạn."
+      footer={<Link to="/login">Quay lại đăng nhập</Link>}
+    >
       <form onSubmit={submit}>
-        <label>
-          Mã đặt lại
+        <Field label="Mã đặt lại">
           <input placeholder="Dán mã đặt lại mật khẩu" value={token} onChange={(e) => setToken(e.target.value)} />
-        </label>
-        <label>
-          Mật khẩu mới
+        </Field>
+        <Field label="Mật khẩu mới">
           <input placeholder="Ít nhất 6 ký tự" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        <label>
-          Nhập lại mật khẩu mới
+        </Field>
+        <Field label="Nhập lại mật khẩu mới">
           <input placeholder="Nhập lại mật khẩu mới" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-        </label>
-        <button className="primary-action" disabled={loading}>{loading ? 'Đang cập nhật...' : 'Đặt lại mật khẩu'}</button>
+        </Field>
+        <Button className="full-width" disabled={loading}>{loading ? 'Đang cập nhật...' : 'Đặt lại mật khẩu'}</Button>
       </form>
 
-      {done && <p className="alert success">Mật khẩu đã được cập nhật. Đang chuyển về đăng nhập...</p>}
-      {err && <p className="alert error">{err}</p>}
-      <p className="muted"><Link to="/login">Quay lại đăng nhập</Link></p>
-    </div>
+      <Alert tone="success">{done ? 'Mật khẩu đã được cập nhật. Đang chuyển về đăng nhập...' : ''}</Alert>
+      <Alert tone="error">{err}</Alert>
+    </AuthLayout>
   );
 }

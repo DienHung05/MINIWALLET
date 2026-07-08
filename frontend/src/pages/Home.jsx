@@ -3,27 +3,27 @@ import { Link } from 'react-router-dom';
 import api from '../api/client.js';
 
 export default function Home() {
-  const [status, setStatus] = useState('Đang kiểm tra kết nối backend...');
+  const [status, setStatus] = useState('Đang kết nối');
 
   useEffect(() => {
     api
       .get('/health')
-      .then((res) => setStatus(`Backend sẵn sàng · ${res.data.time}`))
+      .then(() => setStatus('Sẵn sàng'))
       .catch((e) => setStatus(e.message));
   }, []);
 
   return (
-    <div className="home-panel">
-      <div>
-        <p className="eyebrow">Ví điện tử demo</p>
-        <h1>Quản lý ví, chuyển tiền và theo dõi giao dịch trong một nơi.</h1>
-        <p className="muted">{status}</p>
+    <section className="home-panel">
+      <div className="home-copy">
+        <p className="eyebrow">Mini Wallet</p>
+        <h1>Ví điện tử cho chuyển tiền, nạp tiền và quản lý nguồn tiền liên kết.</h1>
+        <p>Trạng thái hệ thống: <b>{status}</b></p>
       </div>
       <div className="home-actions">
-        <Link className="button-link" to="/login">Đăng nhập khách hàng</Link>
-        <Link className="button-link secondary" to="/register">Tạo tài khoản</Link>
-        <Link to="/admin/login">Vào trang admin</Link>
+        <Link className="btn btn-primary" to="/login">Đăng nhập khách hàng</Link>
+        <Link className="btn btn-secondary" to="/register">Tạo tài khoản</Link>
+        <Link to="/admin/login">Trang admin</Link>
       </div>
-    </div>
+    </section>
   );
 }

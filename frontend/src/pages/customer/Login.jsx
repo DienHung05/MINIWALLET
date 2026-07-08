@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../../api/client.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
+import AuthLayout from '../../components/AuthLayout.jsx';
+import { Alert, Button, Field } from '../../components/ui.jsx';
 
 export default function CustomerLogin() {
   const [identifier, setIdentifier] = useState('');
@@ -22,28 +24,23 @@ export default function CustomerLogin() {
   }
 
   return (
-    <div className="auth-card">
-      <div className="auth-header">
-        <p className="eyebrow">Khách hàng</p>
-        <h2>Đăng nhập ví</h2>
-        <p className="muted">Dùng username hoặc số điện thoại đã đăng ký.</p>
-      </div>
+    <AuthLayout
+      eyebrow="Khách hàng"
+      title="Đăng nhập ví"
+      subtitle="Dùng username hoặc số điện thoại đã đăng ký."
+      footer={<span>Chưa có tài khoản? <Link to="/register">Đăng ký</Link></span>}
+    >
       <form onSubmit={submit}>
-        <label>
-          Username hoặc số điện thoại
+        <Field label="Username hoặc số điện thoại">
           <input placeholder="Ví dụ: linh.nguyen hoặc 0912345678" value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
-        </label>
-        <label>
-          Mật khẩu
+        </Field>
+        <Field label="Mật khẩu">
           <input placeholder="Nhập mật khẩu" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        <button className="primary-action" disabled={loading}>{loading ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
+        </Field>
+        <Button className="full-width" disabled={loading}>{loading ? 'Đang đăng nhập...' : 'Đăng nhập'}</Button>
       </form>
-      {err && <p className="alert error">{err}</p>}
-      <div className="auth-links">
-        <Link to="/forgot-password">Quên mật khẩu?</Link>
-        <span>Chưa có tài khoản? <Link to="/register">Đăng ký</Link></span>
-      </div>
-    </div>
+      <Alert tone="error">{err}</Alert>
+      <p className="form-note"><Link to="/forgot-password">Quên mật khẩu?</Link></p>
+    </AuthLayout>
   );
 }

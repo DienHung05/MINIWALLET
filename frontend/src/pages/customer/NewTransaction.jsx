@@ -1,19 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../../api/client.js';
+import { Alert, Button, EmptyState, Field, SectionHeader } from '../../components/ui.jsx';
+import { formatMoney } from '../../utils/format.js';
 
 const SERVICES = {
   P2P: {
     label: 'Chuyển tiền nội bộ',
-    help: 'Gửi tiền đến số điện thoại đã đăng ký Mini Wallet.',
+    group: 'Chuyển tiền',
     fields: [
       { name: 'receiverPhone', label: 'Số điện thoại người nhận' },
       { name: 'amount', label: 'Số tiền', type: 'number' },
     ],
   },
   INTERBANK_OUT: {
-    label: 'Chuyển tiền liên ngân hàng',
-    help: 'Chuyển tiền ra tài khoản ngân hàng qua NAPAS.',
+    label: 'Chuyển liên ngân hàng',
+    group: 'Chuyển tiền',
     fields: [
       { name: 'destBank', label: 'Mã ngân hàng' },
       { name: 'destAccount', label: 'Số tài khoản' },
@@ -22,7 +24,7 @@ const SERVICES = {
   },
   LINK_BANK: {
     label: 'Liên kết ngân hàng',
-    help: 'Liên kết tài khoản ngân hàng bằng OTP demo 123456.',
+    group: 'Nguồn tiền',
     fields: [
       { name: 'bankCode', label: 'Mã ngân hàng' },
       { name: 'accountNo', label: 'Số tài khoản' },
@@ -30,7 +32,7 @@ const SERVICES = {
   },
   LINK_CARD: {
     label: 'Liên kết thẻ',
-    help: 'Liên kết thẻ bằng xác thực 3DS demo 123456.',
+    group: 'Nguồn tiền',
     fields: [
       { name: 'cardNo', label: 'Số thẻ' },
       { name: 'expiry', label: 'Ngày hết hạn', placeholder: 'MM/YY' },
@@ -39,7 +41,7 @@ const SERVICES = {
   },
   CARD_TOPUP: {
     label: 'Nạp tiền từ thẻ',
-    help: 'Chọn thẻ đã liên kết và nạp tiền vào ví.',
+    group: 'Nạp tiền',
     fields: [
       { name: 'instrumentId', label: 'Thẻ đã liên kết', type: 'cardInstrument' },
       { name: 'amount', label: 'Số tiền', type: 'number' },
@@ -48,10 +50,10 @@ const SERVICES = {
 };
 
 function authPlaceholder(method) {
-  if (method === 'OTP') return 'OTP demo: 123456';
-  if (method === '3DS') return 'Mã 3DS demo: 123456';
-  if (method === 'PIN') return 'Mật khẩu/PIN xác nhận';
-  return 'Mã xác nhận';
+  if (method === 'PIN') return 'Nhập mật khẩu/PIN xác nhận';
+  if (method === 'OTP') return 'Nhập mã OTP';
+  if (method === '3DS') return 'Nhập mã xác thực thẻ';
+  return 'Nhập mã xác nhận';
 }
 
 function authPayload(method, credential) {
@@ -146,8 +148,7 @@ export default function NewTransaction() {
   function renderField(field) {
     if (field.type === 'cardInstrument') {
       return (
-        <label key={field.name}>
-          {field.label}
+        <Field key={field.name} label={field.label}>
           <select value={params[field.name] || ''} onChange={(e) => setValue(field.name, e.target.value)}>
             <option value="">Chọn thẻ</option>
             {cardInstruments.map((x) => (
@@ -156,80 +157,91 @@ export default function NewTransaction() {
               </option>
             ))}
           </select>
-        </label>
+        </Field>
       );
     }
 
     return (
-      <label key={field.name}>
-        {field.label}
+      <Field key={field.name} label={field.label}>
         <input
           placeholder={field.placeholder || field.label}
           type={field.type || 'text'}
           value={params[field.name] || ''}
           onChange={(e) => setValue(field.name, field.type === 'number' ? Number(e.target.value) : e.target.value)}
         />
-      </label>
+      </Field>
     );
   }
 
   return (
-    <div className="card">
-      <div className="section-header">
-        <div>
-          <p className="eyebrow">Giao dịch</p>
-          <h2>Tạo giao dịch mới</h2>
+    <div className="page-stack">
+      <section className="panel">
+        <SectionHeader
+          eyebrow="Giao dịch"
+          title="Tạo giao dịch mới"
+          action={<Link to="/app">Về ví của tôi</Link>}
+        />
+
+        <div className="stepper">
+          <span className={step === 'form' ? 'active' : ''}>Nhập thông tin</span>
+          <span className={step === 'confirm' ? 'active' : ''}>Xác nhận</span>
+          <span className={step === 'result' ? 'active' : ''}>Hoàn tất</span>
         </div>
-        <Link to="/app">Về ví của tôi</Link>
-      </div>
 
-      {step === 'form' && (
-        <form onSubmit={doRequest}>
-          <label>
-            Chọn dịch vụ
-            <select value={serviceCode} onChange={(e) => switchService(e.target.value)}>
-              {Object.entries(SERVICES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-          </label>
-          <p className="muted">{SERVICES[serviceCode].help}</p>
-          {SERVICES[serviceCode].fields.map(renderField)}
-          {serviceCode === 'CARD_TOPUP' && cardInstruments.length === 0 && (
-            <p className="alert error">Bạn chưa có thẻ liên kết. Hãy chọn “Liên kết thẻ” trước.</p>
-          )}
-          <button className="primary-action" disabled={busy}>{busy ? 'Đang xử lý...' : 'Tiếp tục'}</button>
-        </form>
-      )}
+        {step === 'form' && (
+          <form onSubmit={doRequest} className="form-grid">
+            <Field label="Dịch vụ">
+              <select value={serviceCode} onChange={(e) => switchService(e.target.value)}>
+                {Object.entries(SERVICES).map(([k, v]) => <option key={k} value={k}>{v.group} · {v.label}</option>)}
+              </select>
+            </Field>
+            {SERVICES[serviceCode].fields.map(renderField)}
+            {serviceCode === 'CARD_TOPUP' && cardInstruments.length === 0 && (
+              <EmptyState
+                title="Bạn chưa có thẻ liên kết"
+                action={<Button type="button" onClick={() => switchService('LINK_CARD')}>Liên kết thẻ</Button>}
+              />
+            )}
+            <Button className="form-submit" disabled={busy}>{busy ? 'Đang xử lý...' : 'Tiếp tục'}</Button>
+          </form>
+        )}
 
-      {step === 'confirm' && (
-        <form onSubmit={doVerify}>
-          <p className="muted">Mã giao dịch: <code>{preview?.transRefId}</code></p>
-          {preview.amount != null && (
-            <p>
-              Số tiền: <b>{Number(preview.amount).toLocaleString('vi-VN')}</b> · Phí:{' '}
-              <b>{Number(preview.fee).toLocaleString('vi-VN')}</b> · Tổng:{' '}
-              <b>{Number(preview.total).toLocaleString('vi-VN')}</b>
-            </p>
-          )}
-          <label>
-            Xác nhận {authMethod}
-            <input placeholder={authPlaceholder(authMethod)} type="password" value={cred} onChange={(e) => setCred(e.target.value)} />
-          </label>
-          <button disabled={busy}>{busy ? 'Đang xử lý...' : 'Xác nhận'}</button>{' '}
-          <button type="button" className="secondary-button" onClick={reset}>Huỷ</button>
-        </form>
-      )}
+        {step === 'confirm' && (
+          <form onSubmit={doVerify} className="form-grid">
+            <div className="receipt-preview">
+              <span>Mã giao dịch</span>
+              <code>{preview?.transRefId}</code>
+              {preview.amount != null && (
+                <p>
+                  Số tiền <b>{formatMoney(preview.amount, '')}</b> · Phí <b>{formatMoney(preview.fee, '')}</b> · Tổng{' '}
+                  <b>{formatMoney(preview.total, '')}</b>
+                </p>
+              )}
+            </div>
+            <Field label={`Xác nhận ${authMethod}`}>
+              <input placeholder={authPlaceholder(authMethod)} type="password" value={cred} onChange={(e) => setCred(e.target.value)} />
+            </Field>
+            <div className="button-row">
+              <Button disabled={busy}>{busy ? 'Đang xử lý...' : 'Xác nhận'}</Button>
+              <Button type="button" variant="secondary" onClick={reset}>Huỷ</Button>
+            </div>
+          </form>
+        )}
 
-      {step === 'result' && (
-        <div>
-          {result.status === 'done' && <p className="alert success">Thành công {result.transaction ? `· ${result.transaction.code}` : ''}</p>}
-          {result.status === 'processing' && <p className="alert">Đang xử lý, chờ cập nhật từ ngân hàng đối tác.</p>}
-          {result.effects?.length > 0 && <p className="alert success">Đã liên kết: {result.effects[0].masked}</p>}
-          <button onClick={reset}>Giao dịch khác</button>{' '}
-          <Link to="/app"><button type="button" className="secondary-button">Về ví của tôi</button></Link>
-        </div>
-      )}
+        {step === 'result' && (
+          <div className="result-panel">
+            {result.status === 'done' && <Alert tone="success">Giao dịch thành công {result.transaction ? `· ${result.transaction.code}` : ''}</Alert>}
+            {result.status === 'processing' && <Alert>Giao dịch đang xử lý, hệ thống sẽ cập nhật khi đối tác phản hồi.</Alert>}
+            {result.effects?.length > 0 && <Alert tone="success">Đã liên kết nguồn tiền {result.effects[0].masked}</Alert>}
+          <div className="button-row">
+            <Button onClick={reset}>Giao dịch khác</Button>
+              <Link className="btn btn-secondary" to="/app">Về ví của tôi</Link>
+          </div>
+          </div>
+        )}
 
-      {err && <p className="alert error">{err}</p>}
+        <Alert tone="error">{err}</Alert>
+      </section>
     </div>
   );
 }

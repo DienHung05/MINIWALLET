@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
+import AuthLayout from '../../components/AuthLayout.jsx';
+import { Alert, Button, Field } from '../../components/ui.jsx';
 
 export default function OfficerLogin() {
   const [username, setUsername] = useState('admin'); const [password, setPassword] = useState('admin123');
@@ -18,24 +20,17 @@ export default function OfficerLogin() {
   }
 
   return (
-    <div className="auth-card">
-      <div className="auth-header">
-        <p className="eyebrow">Quản trị</p>
-        <h2>Đăng nhập admin</h2>
-        <p className="muted">Tài khoản mặc định cho MVP: admin/admin123.</p>
-      </div>
+    <AuthLayout eyebrow="Quản trị" title="Đăng nhập admin" subtitle="Khu vực vận hành dành cho quản trị viên.">
       <form onSubmit={submit}>
-        <label>
-          Tên đăng nhập
+        <Field label="Tên đăng nhập">
           <input placeholder="admin" value={username} onChange={(e) => setUsername(e.target.value)} />
-        </label>
-        <label>
-          Mật khẩu
+        </Field>
+        <Field label="Mật khẩu">
           <input placeholder="admin123" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        <button className="primary-action" disabled={loading}>{loading ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
+        </Field>
+        <Button className="full-width" disabled={loading}>{loading ? 'Đang đăng nhập...' : 'Đăng nhập'}</Button>
       </form>
-      {err && <p className="alert error">{err}</p>}
-    </div>
+      <Alert tone="error">{err}</Alert>
+    </AuthLayout>
   );
 }
