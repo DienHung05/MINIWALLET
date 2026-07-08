@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../../api/client.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
+import AuthLayout from '../../components/AuthLayout.jsx';
+import { Alert, Button, Field } from '../../components/ui.jsx';
 
 export default function Register() {
     const [name, setName] = useState('');
@@ -24,37 +26,31 @@ export default function Register() {
     }
 
     return (
-        <div className="auth-card">
-            <div className="auth-header">
-                <p className="eyebrow">Tạo tài khoản</p>
-                <h2>Đăng ký Mini Wallet</h2>
-                <p className="muted">Tạo ví mới với số dư khởi tạo để thử các luồng giao dịch.</p>
-            </div>
+        <AuthLayout
+            eyebrow="Tạo tài khoản"
+            title="Đăng ký Mini Wallet"
+            subtitle="Tạo ví mới và bắt đầu giao dịch trong vài bước."
+            footer={<span>Đã có tài khoản? <Link to="/login">Đăng nhập</Link></span>}
+        >
             <form onSubmit={submit}>
-                <label>
-                    Họ tên
+                <Field label="Họ tên">
                     <input placeholder="Nguyễn Linh" value={name} onChange={(e) => setName(e.target.value)} />
-                </label>
-                <label>
-                    Username
+                </Field>
+                <Field label="Username">
                     <input placeholder="linh.nguyen" value={username} onChange={(e) => setUsername(e.target.value)} />
-                </label>
-                <label>
-                    Số điện thoại
+                </Field>
+                <Field label="Số điện thoại">
                     <input placeholder="0912345678" value={phone} onChange={(e) => setPhone(e.target.value)} />
-                </label>
-                <label>
-                    Mật khẩu
+                </Field>
+                <Field label="Mật khẩu">
                     <input placeholder="Ít nhất 6 ký tự" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-                </label>
-                <label>
-                    Nhập lại mật khẩu
+                </Field>
+                <Field label="Nhập lại mật khẩu">
                     <input placeholder="Nhập lại mật khẩu" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-                </label>
-                <button className="primary-action" disabled={loading}>{loading ? 'Đang tạo tài khoản...' : 'Đăng ký'}</button>
+                </Field>
+                <Button className="full-width" disabled={loading}>{loading ? 'Đang tạo tài khoản...' : 'Đăng ký'}</Button>
             </form>
-            {err && <p className="alert error">{err}</p>}
-            <p className="muted">Đã có tài khoản? <Link to="/login">Đăng nhập</Link></p>
-        </div>
+            <Alert tone="error">{err}</Alert>
+        </AuthLayout>
     );
 }

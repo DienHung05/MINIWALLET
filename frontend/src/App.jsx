@@ -1,6 +1,6 @@
-import { Routes, Route, Link, useNavigate } from 'react-router-dom';
-import { useAuth } from './auth/AuthContext.jsx';
+import { Routes, Route } from 'react-router-dom';
 import ProtectedRoute from './auth/ProtectedRoute.jsx';
+import AppShell from './components/AppShell.jsx';
 import Home from './pages/Home.jsx';
 import CustomerLogin from './pages/customer/Login.jsx';
 import Register from './pages/customer/Register.jsx';
@@ -12,21 +12,8 @@ import OfficerLogin from './pages/admin/Login.jsx';
 import AdminDashboard from './pages/admin/Dashboard.jsx';
 
 export default function App() {
-  const { isAuthed, user, logout } = useAuth();
-  const nav = useNavigate();
   return (
-    <div className="container">
-      <header className="app-header">
-        <Link className="brand" to="/">Mini Wallet</Link>
-        <nav>
-          <Link to="/">Trang chủ</Link>
-          {!isAuthed && <><Link to="/login">Khách hàng</Link><Link to="/admin/login">Admin</Link></>}
-          {isAuthed && user?.role === 'customer' && <Link to="/app">Ví của tôi</Link>}
-          {isAuthed && user?.role === 'officer' && <Link to="/admin">Vận hành</Link>}
-          {isAuthed && <a href="#" onClick={(e) => { e.preventDefault(); logout(); nav('/'); }}>Đăng xuất</a>}
-        </nav>
-      </header>
-
+    <AppShell>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<CustomerLogin />} />
@@ -39,6 +26,6 @@ export default function App() {
         <Route path="/admin" element={<ProtectedRoute role="officer"><AdminDashboard /></ProtectedRoute>} />
         <Route path="*" element={<p>Không tìm thấy trang.</p>} />
       </Routes>
-    </div>
+    </AppShell>
   );
 }

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/client.js';
+import AuthLayout from '../../components/AuthLayout.jsx';
+import { Alert, Button, Field } from '../../components/ui.jsx';
 
 export default function ForgotPassword() {
   const [identifier, setIdentifier] = useState('');
@@ -30,30 +32,28 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div className="auth-card">
-      <div className="auth-header">
-        <p className="eyebrow">Khôi phục</p>
-        <h2>Quên mật khẩu</h2>
-        <p className="muted">Nhập username hoặc số điện thoại để nhận mã đặt lại mật khẩu.</p>
-      </div>
+    <AuthLayout
+      eyebrow="Khôi phục"
+      title="Quên mật khẩu"
+      subtitle="Nhập username hoặc số điện thoại để tạo mã đặt lại mật khẩu."
+      footer={<Link to="/login">Quay lại đăng nhập</Link>}
+    >
       <form onSubmit={submit}>
-        <label>
-          Username hoặc số điện thoại
+        <Field label="Username hoặc số điện thoại">
           <input placeholder="linh.nguyen hoặc 0912345678" value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
-        </label>
-        <button className="primary-action" disabled={loading}>{loading ? 'Đang tạo mã...' : 'Tạo mã đặt lại'}</button>
+        </Field>
+        <Button className="full-width" disabled={loading}>{loading ? 'Đang tạo mã...' : 'Tạo mã đặt lại'}</Button>
       </form>
 
-      {err && <p className="alert error">{err}</p>}
+      <Alert tone="error">{err}</Alert>
       {resetToken && (
         <div className="reset-token-box">
-          <p className="muted">Mã đặt lại mật khẩu dùng cho bản demo:</p>
+          <p className="muted">Mã đặt lại mật khẩu:</p>
           <code>{resetToken}</code>
           <p className="muted">Hết hạn: {expiresAt ? new Date(expiresAt).toLocaleString('vi-VN') : '15 phút'}</p>
           <Link className="button-link" to={`/reset-password?token=${encodeURIComponent(resetToken)}`}>Đặt lại mật khẩu</Link>
         </div>
       )}
-      <p className="muted"><Link to="/login">Quay lại đăng nhập</Link></p>
-    </div>
+    </AuthLayout>
   );
 }
