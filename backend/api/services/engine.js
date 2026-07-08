@@ -58,9 +58,32 @@ async function buildFields(service, ctx) {
     else if (f.source === 'query') {
       const fn = QUERY_FNS[f.fn]; if (!fn) throw fail(500, 'Query fn chưa hỗ trợ: ' + f.fn);
       body[f.name] = await fn(body[f.arg] !== undefined ? body[f.arg] : params[f.arg]);
+    } else if (f.source === 'instrument') {
+      const instId = body[f.arg] !== undefined ? body[f.arg] : params[f.arg];
+      const inst = await Instrument.findOne({ id: instId, customer: ctx.userId, status: 'active' });
+      if (!inst) throw fail(404, 'Không tìm thấy instrument hoặc không thuộc về bạn');
+      if (f.type && inst.type !== f.type) throw fail(400, 'Instrument không đúng loại yêu cầu');
+      if (f.connector && inst.connector !== f.connector) throw fail(400, 'Instrument không đúng connector yêu cầu');
+      body[f.name] = f.field ? inst[f.field] : inst.id;
     } else throw fail(500, 'Nguồn fieldBuilder chưa hỗ trợ: ' + f.source);
   }
   return body;
+}
+
+async function scrubSecuredTrailData(service, body, inputMessage) {
+  const fields = await TransField.find({ service: String(service.id), needSecured: true, status: 'active' });
+  if (!fields.length) return { body, inputMessage };
+
+  const safeBody = Object.assign({}, body || {});
+  const safeInput = Object.assign({}, inputMessage || {});
+  const safeParams = Object.assign({}, safeInput.parameters || {});
+  for (const f of fields) {
+    if (safeBody[f.fieldName] !== undefined && safeBody[f.fieldName] !== null) safeBody[f.fieldName] = mask(safeBody[f.fieldName]);
+    const builder = (service.fieldBuilder || []).find((x) => x.name === f.fieldName && x.source === 'mapping');
+    if (builder && safeParams[builder.from] !== undefined && safeParams[builder.from] !== null) safeParams[builder.from] = mask(safeParams[builder.from]);
+  }
+  safeInput.parameters = safeParams;
+  return { body: safeBody, inputMessage: safeInput };
 }
 
 async function validateFields(service, body) {
@@ -222,7 +245,7 @@ async function processRequest(serviceCode, parameters, ctx) {
   const service = await loadEnabledService(serviceCode);
   const body = await buildFields(service, { userId: ctx.userId, parameters });
   await validateFields(service, body);
-  await runHooks(service, 'onRequest', body);     // vd Bill: inquiry
+  await runHooks(service, 'onRequest', body);    
   computeFee(service, body);
   await validateBusiness(service, body);
   const trail = await TransactionTrail.create({
@@ -293,6 +316,7 @@ async function processVerify(transRefId, credential, ctx) {
       if (!credential) throw fail(401, 'Thiếu PIN');
       if (!(await bcrypt.compare(`${credential}`, ctx.user.pinHash))) throw fail(401, 'PIN không đúng');
     }
+    if ((method === 'OTP' || method === '3DS') && !credential) throw fail(401, `Thiếu ${method}`);
     await validateBusiness(service, body);
     await runHooks(service, 'onPreVerify', body);   // vd validateAccount / verifyOtp / charge thẻ
 

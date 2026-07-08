@@ -42,7 +42,7 @@ export default function Dashboard() {
         ) : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Loại</th><th>Đối tác</th><th>Số masked</th><th>Chủ tài khoản</th><th>Trạng thái</th></tr></thead>
+              <thead><tr><th>Loại</th><th>Đối tác</th><th>Số masked</th><th>Chủ tài khoản</th><th>Trạng thái</th><th>Mã nguồn liên kết của thẻ</th></tr></thead>
               <tbody>
                 {instruments.map((x) => (
                   <tr key={x.id}>
@@ -51,6 +51,7 @@ export default function Dashboard() {
                     <td>{x.maskedNumber}</td>
                     <td>{x.holderName || '-'}</td>
                     <td><span className={`badge ${x.status}`}>{x.status}</span></td>
+                    <td><code>{x.id}</code></td>
                   </tr>
                 ))}
               </tbody>

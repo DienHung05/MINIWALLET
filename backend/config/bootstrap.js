@@ -86,6 +86,7 @@ module.exports.bootstrap = async function () {
       validateAccount: { method: 'POST', path: '/validate', request: { account: '$.account', bankCode: '$.bankCode' }, response: { name: '$.data.name' } },
       payout: { method: 'POST', path: '/payout', request: { account: '$.account', amount: '$.amount', refId: '$.refId' }, response: { ref: '$.data.ref', state: '$.data.state' }, idempotent: true },
       status: { method: 'POST', path: '/status', request: { refId: '$.refId' }, response: { state: '$.data.state' } },
+      statement: { method: 'POST', path: '/statement', request: { balance: '$.balance' }, response: { balance: '$.data.balance', currency: '$.data.currency' } },
     } },
   ];
   for (const c of connectors) {
@@ -130,7 +131,32 @@ module.exports.bootstrap = async function () {
     sails.log.info('Seed: Service LINK_BANK');
   }
 
-  // ── 7) Ví suspense (giữ tiền in-flight) + nostro (gương tiền đối tác) ──
+  // Config LINK_CARD
+  if (!(await Service.findOne({ code: 'LINK_CARD' }))) {
+    const s = await Service.create({
+      code: 'LINK_CARD', name: 'Liên kết thẻ', serviceType: 'link', currency: 'VND',
+      fieldBuilder: [
+        { name: 'CARDNUMBER', source: 'mapping', from: 'cardNumber' },
+        { name: 'HOLDERNAME', source: 'mapping', from: 'holderName' },
+      ],
+      feeConfig: { type: 'fixed', value: 0 },
+      auth: { method: '3DS' },
+      hooks: [
+        { phase: 'onPreVerify', connector: 'VISA', operation: 'tokenize', inputMap: { cardNumber: 'CARDNUMBER', threeDsCode: 'OTP', holderName: 'HOLDERNAME' }, outputMap: { INSTRTOKEN: 'token', CARDMASKED: 'masked', CARDHOLDER: 'name' }, onFailure: 'abort' },
+      ],
+      effects: [{ type: 'createInstrument', with: { type: 'card', connector: 'VISA', tokenVar: 'INSTRTOKEN', nameVar: 'CARDHOLDER', maskedVar: 'CARDNUMBER' } }],
+      enabled: true,
+    }).fetch();
+    const sid = String(s.id);
+    await TransField.createEach([
+      { service: sid, fieldName: 'CARDNUMBER', fieldFormat: 'string', regex: '^\\d{12,19}$', isRequired: true, needSecured: true, order: 1, errorCode: 400 },
+      { service: sid, fieldName: 'HOLDERNAME', fieldFormat: 'string', isRequired: true, order: 2, errorCode: 400 },
+    ]);
+    await TransDefinition.create({ service: sid, glSteps: [] });
+    sails.log.info('Seed: Service LINK_CARD');
+  }
+
+  // ── 7) Ví suspense (giữ tiền in-flight) + nostro (gương tiền đối tác) + funding thẻ ──
   for (const w of [
     { ownerType: 'suspense', ownerRef: 'SUSPENSE_PAYOUT' },
     { ownerType: 'nostro', ownerRef: 'NOSTRO_NAPAS' },

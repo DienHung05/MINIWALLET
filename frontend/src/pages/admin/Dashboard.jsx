@@ -100,10 +100,10 @@ export default function AdminDashboard() {
         <select value={connectorCode} onChange={(e) => setConnectorCode(e.target.value)}>
           {connectors.length > 0 ? connectors.map((c) => <option key={c.code}>{c.code}</option>) : <><option>VCB</option><option>VISA</option><option>NAPAS</option></>}
         </select>
-        <input placeholder="Operation" value={operation} onChange={(e) => setOperation(e.target.value)} />
+        <input placeholder="Tên thao tác" value={operation} onChange={(e) => setOperation(e.target.value)} />
       </div>
       <textarea rows="4" value={args} onChange={(e) => setArgs(e.target.value)} />
-      <button onClick={testConnector}>Gọi thử connector</button>
+      <button onClick={testConnector}>Gọi thử thao tác</button>
 
       <h3 style={{ marginTop: 20 }}>Mock callback NAPAS (cho giao dịch async)</h3>
       <input placeholder="transRefId (đang processing)" value={refId} onChange={(e) => setRefId(e.target.value)} />
@@ -139,12 +139,24 @@ export default function AdminDashboard() {
                   <td>{Number(t.amount || 0).toLocaleString('vi-VN')}</td>
                   <td>{t.partnerRef || t.partnerState || '-'}</td>
                   <td><code>{t.transRefId}</code></td>
-                  <td><button type="button" onClick={() => setRefId(t.transRefId)}>Chọn</button></td>
+                  <td>
+                    <button type="button" onClick={() => setRefId(t.transRefId)}>Chọn</button>{' '}
+                    <button type="button" onClick={() => setSelectedTrail(t)}>Chi tiết</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {selectedTrail && (
+        <>
+          <h3 style={{ marginTop: 20 }}>Chi tiết trail</h3>
+          <pre style={{ background: '#f1f5f9', padding: 10, borderRadius: 6, marginTop: 12 }}>
+            {JSON.stringify(selectedTrail, null, 2)}
+          </pre>
+        </>
       )}
 
       {out && <pre style={{ background: '#f1f5f9', padding: 10, borderRadius: 6, marginTop: 12 }}>{out}</pre>}
