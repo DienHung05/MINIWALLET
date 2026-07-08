@@ -3,6 +3,8 @@ module.exports.policies = {
   health: true,
   'customer/register': true,        
   'customer/login': true,
+  'customer/forgot-password': true,
+  'customer/reset-password': true,
   'officer/login': true,
 
   me: 'isAuthenticated',
@@ -22,6 +24,5 @@ module.exports.policies = {
   'admin/recover': ['isAuthenticated', 'isOfficer'],
   'admin/integrity': ['isAuthenticated', 'isOfficer'],
   'admin/trails': ['isAuthenticated', 'isOfficer'],
-  'admin/reconcile': ['isAuthenticated', 'isOfficer'],
   'admin/connectors': ['isAuthenticated', 'isOfficer'],
 };

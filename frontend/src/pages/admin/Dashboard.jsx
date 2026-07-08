@@ -7,7 +7,6 @@ export default function AdminDashboard() {
   const [refId, setRefId] = useState(''); const [state, setState] = useState('SUCCESS');
   const [trails, setTrails] = useState([]);
   const [connectors, setConnectors] = useState([]);
-  const [selectedTrail, setSelectedTrail] = useState(null);
   const [trailStatus, setTrailStatus] = useState('processing');
   const [connectorCode, setConnectorCode] = useState('VCB');
   const [operation, setOperation] = useState('sendOtp');

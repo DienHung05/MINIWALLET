@@ -4,8 +4,8 @@ import api from '../../api/client.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 
 export default function CustomerLogin() {
-  const [phone, setPhone] = useState('');
-  const [pin, setPin] = useState('');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
   const auth = useAuth();
@@ -15,24 +15,35 @@ export default function CustomerLogin() {
     e.preventDefault();
     setErr(''); setLoading(true);
     try {
-      const res = await api.post('/customer/login', { phone, pin });
-      localStorage.setItem('mw_token', res.token);        
-      const me = await api.get('/me');
-      auth.login({ token: res.token, user: { id: me.user.id, role: me.user.role, phone } });
+      const res = await api.post('/customer/login', { identifier, password });
+      auth.login({ token: res.token, user: Object.assign({ role: 'customer' }, res.customer || {}) });
       nav('/app');
     } catch (e) { setErr(e.message); } finally { setLoading(false); }
   }
 
   return (
-    <div className="card">
-      <h2>Đăng nhập Customer</h2>
+    <div className="auth-card">
+      <div className="auth-header">
+        <p className="eyebrow">Khách hàng</p>
+        <h2>Đăng nhập ví</h2>
+        <p className="muted">Dùng username hoặc số điện thoại đã đăng ký.</p>
+      </div>
       <form onSubmit={submit}>
-        <input placeholder="Số điện thoại" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <input placeholder="Mã PIN" type="password" value={pin} onChange={(e) => setPin(e.target.value)} />
-        <button disabled={loading}>{loading ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
+        <label>
+          Username hoặc số điện thoại
+          <input placeholder="Ví dụ: linh.nguyen hoặc 0912345678" value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
+        </label>
+        <label>
+          Mật khẩu
+          <input placeholder="Nhập mật khẩu" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </label>
+        <button className="primary-action" disabled={loading}>{loading ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
       </form>
-      {err && <p style={{ color: 'crimson' }}>{err}</p>}
-      <p className="muted">Chưa có tài khoản? <Link to="/register">Đăng ký</Link></p>
+      {err && <p className="alert error">{err}</p>}
+      <div className="auth-links">
+        <Link to="/forgot-password">Quên mật khẩu?</Link>
+        <span>Chưa có tài khoản? <Link to="/register">Đăng ký</Link></span>
+      </div>
     </div>
   );
 }

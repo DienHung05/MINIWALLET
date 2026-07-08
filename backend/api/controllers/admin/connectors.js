@@ -11,7 +11,6 @@ module.exports = async function connectors(req, res) {
       timeoutMs: c.timeoutMs,
       maxRetries: c.maxRetries,
       operations: Object.keys(c.operations || {}),
-      operationSpecs: c.operations || {},
     })),
   });
 };
