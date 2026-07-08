@@ -1,3 +1,24 @@
 module.exports = async function me(req, res) {
-  return res.ok({ user: { id: req.info.user.id, role: req.info.role } });
+  const u = req.info.user;
+  if (req.info.role === 'customer') {
+    return res.ok({
+      user: {
+        id: u.id,
+        role: 'customer',
+        username: u.username,
+        phone: u.phone,
+        name: u.name,
+        status: u.status,
+      },
+    });
+  }
+
+  return res.ok({
+    user: {
+      id: u.id,
+      role: 'officer',
+      username: u.username,
+      status: u.status,
+    },
+  });
 };

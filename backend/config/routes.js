@@ -3,6 +3,8 @@ module.exports.routes = {
 
   'POST /api/customer/register': { action: 'customer/register' },
   'POST /api/customer/login':    { action: 'customer/login' },
+  'POST /api/customer/forgot-password': { action: 'customer/forgot-password' },
+  'POST /api/customer/reset-password':  { action: 'customer/reset-password' },
   'POST /api/officer/login':     { action: 'officer/login' },
   'GET  /api/me':                { action: 'me' },
   'GET  /api/customer/balance':  { action: 'customer/balance' },

@@ -3,6 +3,8 @@ module.exports.policies = {
   health: true,
   'customer/register': true,        
   'customer/login': true,
+  'customer/forgot-password': true,
+  'customer/reset-password': true,
   'officer/login': true,
 
   me: 'isAuthenticated',

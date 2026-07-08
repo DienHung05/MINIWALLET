@@ -7,11 +7,11 @@ export default function AdminDashboard() {
   const [refId, setRefId] = useState(''); const [state, setState] = useState('SUCCESS');
   const [trails, setTrails] = useState([]);
   const [connectors, setConnectors] = useState([]);
-  const [selectedTrail, setSelectedTrail] = useState(null);
   const [trailStatus, setTrailStatus] = useState('processing');
   const [connectorCode, setConnectorCode] = useState('VCB');
   const [operation, setOperation] = useState('sendOtp');
   const [args, setArgs] = useState('{"account":"0123456789"}');
+  const [statementBalance, setStatementBalance] = useState('');
 
   async function loadIntegrity() {
     setErr('');
@@ -24,12 +24,8 @@ export default function AdminDashboard() {
   }
   async function loadConnectors() {
     setErr('');
-    try {
-      const r = await api.get('/admin/connectors');
-      const rows = r.connectors || [];
-      setConnectors(rows);
-      if (rows.length > 0 && !rows.some((c) => c.code === connectorCode)) setConnectorCode(rows[0].code);
-    } catch (e) { setErr(e.message); }
+    try { const r = await api.get('/admin/connectors'); setConnectors(r.connectors || []); }
+    catch (e) { setErr(e.message); }
   }
   useEffect(() => { loadIntegrity(); loadTrails(); loadConnectors(); }, []);
 
@@ -51,6 +47,14 @@ export default function AdminDashboard() {
       setErr(e.message || 'JSON args không hợp lệ');
     }
   }
+  async function runReconcile() {
+    setErr('');
+    try {
+      const body = statementBalance === '' ? {} : { statementBalance: Number(statementBalance) };
+      const r = await api.post('/admin/reconcile', body);
+      setOut('Đối soát: ' + JSON.stringify(r.report, null, 2));
+    } catch (e) { setErr(e.message); }
+  }
 
   return (
     <div className="card">
@@ -66,6 +70,12 @@ export default function AdminDashboard() {
       )}
       <button onClick={loadIntegrity}>Làm mới</button>{' '}
       <button onClick={runRecover}>Chạy Janitor (recover)</button>
+
+      <h3 style={{ marginTop: 20 }}>Đối soát NAPAS</h3>
+      <div className="grid two">
+        <input placeholder="Số dư sao kê mock (để trống = khớp sổ)" type="number" value={statementBalance} onChange={(e) => setStatementBalance(e.target.value)} />
+        <button onClick={runReconcile}>Chạy đối soát</button>
+      </div>
 
       <h3 style={{ marginTop: 20 }}>Test connector</h3>
       {connectors.length > 0 && (
@@ -90,10 +100,10 @@ export default function AdminDashboard() {
         <select value={connectorCode} onChange={(e) => setConnectorCode(e.target.value)}>
           {connectors.length > 0 ? connectors.map((c) => <option key={c.code}>{c.code}</option>) : <><option>VCB</option><option>VISA</option><option>NAPAS</option></>}
         </select>
-        <input placeholder="Tên thao tác" value={operation} onChange={(e) => setOperation(e.target.value)} />
+        <input placeholder="Operation" value={operation} onChange={(e) => setOperation(e.target.value)} />
       </div>
       <textarea rows="4" value={args} onChange={(e) => setArgs(e.target.value)} />
-      <button onClick={testConnector}>Gọi thử thao tác</button>
+      <button onClick={testConnector}>Gọi thử connector</button>
 
       <h3 style={{ marginTop: 20 }}>Mock callback NAPAS (cho giao dịch async)</h3>
       <input placeholder="transRefId (đang processing)" value={refId} onChange={(e) => setRefId(e.target.value)} />
@@ -129,24 +139,12 @@ export default function AdminDashboard() {
                   <td>{Number(t.amount || 0).toLocaleString('vi-VN')}</td>
                   <td>{t.partnerRef || t.partnerState || '-'}</td>
                   <td><code>{t.transRefId}</code></td>
-                  <td>
-                    <button type="button" onClick={() => setRefId(t.transRefId)}>Chọn</button>{' '}
-                    <button type="button" onClick={() => setSelectedTrail(t)}>Chi tiết</button>
-                  </td>
+                  <td><button type="button" onClick={() => setRefId(t.transRefId)}>Chọn</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      )}
-
-      {selectedTrail && (
-        <>
-          <h3 style={{ marginTop: 20 }}>Chi tiết trail</h3>
-          <pre style={{ background: '#f1f5f9', padding: 10, borderRadius: 6, marginTop: 12 }}>
-            {JSON.stringify(selectedTrail, null, 2)}
-          </pre>
-        </>
       )}
 
       {out && <pre style={{ background: '#f1f5f9', padding: 10, borderRadius: 6, marginTop: 12 }}>{out}</pre>}

@@ -18,14 +18,24 @@ export default function OfficerLogin() {
   }
 
   return (
-    <div className="card">
-      <h2>Đăng nhập Officer</h2>
+    <div className="auth-card">
+      <div className="auth-header">
+        <p className="eyebrow">Quản trị</p>
+        <h2>Đăng nhập admin</h2>
+        <p className="muted">Tài khoản mặc định cho MVP: admin/admin123.</p>
+      </div>
       <form onSubmit={submit}>
-        <input placeholder="Tên đăng nhập" value={username} onChange={(e) => setUsername(e.target.value)} />
-        <input placeholder="Mật khẩu" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        <button disabled={loading}>{loading ? 'Đang...' : 'Đăng nhập'}</button>
+        <label>
+          Tên đăng nhập
+          <input placeholder="admin" value={username} onChange={(e) => setUsername(e.target.value)} />
+        </label>
+        <label>
+          Mật khẩu
+          <input placeholder="admin123" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </label>
+        <button className="primary-action" disabled={loading}>{loading ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
       </form>
-      {err && <p style={{ color: 'crimson' }}>{err}</p>}
+      {err && <p className="alert error">{err}</p>}
     </div>
   );
 }
