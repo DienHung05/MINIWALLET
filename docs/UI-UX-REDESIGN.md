@@ -237,38 +237,36 @@ Component nên có:
 - `Stepper`
 - `Alert`
 
-## 7. Backend/Auth cần chỉnh
+## 7. Backend/Auth hiện tại
 
-Customer hiện đang dùng `phone/pin`. Redesign yêu cầu chuyển login sang mật khẩu, cho phép nhập username hoặc số điện thoại.
+Redesign auth đã được triển khai.
 
-Thay đổi đề xuất:
-
-- `Customer` thêm `username` unique.
-- Giữ `phone` unique để chuyển tiền và khôi phục.
-- Đổi `pinHash` thành `passwordHash` hoặc hỗ trợ song song trong giai đoạn chuyển tiếp.
+- `Customer` có `username` unique, `phone` unique, `passwordHash` và reset token fields.
+- `pinHash` vẫn được giữ để engine xác nhận giao dịch theo cấu hình cũ; trong MVP hash này được set cùng mật khẩu.
 - `customer/register` nhận `{ username, password, phone, name }`.
 - `customer/login` nhận `{ identifier, password }`, trong đó `identifier` có thể là username hoặc số điện thoại.
 - `officer/login` giữ `{ username, password }` và dùng tài khoản admin mặc định đã seed.
-- Thêm:
+- Đã có:
   - `POST /api/customer/forgot-password`
   - `POST /api/customer/reset-password`
 
 Trong dev/MVP, forgot password có thể trả reset token trong response để demo, nhưng UI không gọi nó là mock.
 
-## 8. Roadmap sản phẩm cần bổ sung
+## 8. Roadmap sản phẩm
 
-Roadmap engine hiện tại đúng hướng, nhưng để Mini Wallet thành một web dễ dùng cho customer và admin thì cần thêm một lớp hoàn thiện sản phẩm bên trên engine.
+Roadmap engine hiện tại đúng hướng. Lớp sản phẩm phía trên engine cũng đã được triển khai phần MVP để Mini Wallet dễ dùng hơn cho customer và admin.
 
 Trạng thái hiện tại:
 
-- Customer đang đăng ký/đăng nhập bằng `phone/pin`.
+- Customer đăng ký/đăng nhập bằng username hoặc số điện thoại + mật khẩu.
+- Customer có quên mật khẩu và đặt lại mật khẩu.
 - Admin đã có tài khoản mặc định seed trong `bootstrap`: `admin/admin123`.
-- Customer UI đã có dashboard, tạo giao dịch P2P, liên ngân hàng, liên kết ngân hàng, lịch sử và nguồn tiền liên kết.
-- Admin UI đã có integrity, recover, danh sách connector, test connector và trail viewer.
-- Backend đã có connector mock VCB/VISA/NAPAS, callback async, janitor recover và interbank out.
-- D1 đối soát chưa có endpoint/UI riêng; hiện mới có integrity/nostro ở dashboard.
-- D2 connector mới dừng ở xem danh sách + test connector, chưa phải CRUD đầy đủ.
-- B4/B5 chưa hoàn thiện thành luồng customer rõ ràng: liên kết thẻ và nạp tiền từ thẻ.
+- Customer UI đã có dashboard, tạo giao dịch P2P, liên ngân hàng, liên kết ngân hàng, liên kết thẻ, nạp tiền từ thẻ, lịch sử và nguồn tiền liên kết.
+- Admin UI đã có tổng quan, integrity, recover, đối soát, connector CRUD/test và trail viewer.
+- Backend đã có connector mock VCB/VISA/NAPAS, callback async, janitor recover, interbank out, LINK_CARD và CARD_TOPUP.
+- D1 đối soát đã có endpoint/UI.
+- D2 connector CRUD và trail viewer mở rộng đã có.
+- B4/B5 đã có trong backend và frontend customer.
 
 Các cụm nên làm tiếp:
 
@@ -278,7 +276,7 @@ Các cụm nên làm tiếp:
 | P1 | AppShell + design system | Tách shell customer/admin, navigation rõ, component chung, responsive mobile. |
 | P2 | Customer flows | Dashboard ví, chuyển tiền, chuyển liên ngân hàng, liên kết ngân hàng/thẻ, nạp tiền, lịch sử. |
 | P3 | Admin flows | Tổng quan vận hành, giao dịch, đối soát, connector, công cụ kỹ thuật. |
-| P4 | Backend còn thiếu | D1 reconcile endpoint/UI, D2 connector CRUD thật, B4 LINK_CARD, B5 CARD_TOPUP. |
+| P4 | Backend còn thiếu | Đã hoàn thành D1 reconcile, D2 connector CRUD, B4 LINK_CARD, B5 CARD_TOPUP trong MVP. |
 | P5 | Hardening | Build pass, test idempotency/reversal/timeout, property test bảo toàn tổng số dư. |
 
 Lưu ý quan trọng: redesign đổi login/register sang `password`, nhưng engine hiện vẫn dùng `PIN` để xác thực giao dịch. Có thể giữ PIN giao dịch trong MVP, hoặc đổi sang “mật khẩu xác nhận giao dịch” ở một stage riêng để tránh lẫn logic auth với logic verify transaction.

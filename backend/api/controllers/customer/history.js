@@ -1,8 +1,8 @@
 function safeBody(body) {
   const out = Object.assign({}, body || {});
-  delete out.OTP;
-  delete out.CREDENTIAL;
-  delete out.INSTRTOKEN;
+  for (const key of Object.keys(out)) {
+    if (['OTP', 'CREDENTIAL', 'CARDNO', 'CVV'].includes(key) || key.includes('TOKEN')) delete out[key];
+  }
   return out;
 }
 

@@ -95,10 +95,10 @@ module.exports.bootstrap = async function () {
       await Connector.create(c);
       sails.log.info('Seed: Connector ' + c.code);
     } else {
-      const operations = Object.assign({}, c.operations || {}, existing.operations || {});
+      const operations = Object.assign({}, existing.operations || {}, c.operations || {});
       await Connector.updateOne({ code: c.code }).set({
-        name: existing.name || c.name,
-        kind: existing.kind || c.kind,
+        name: c.name,
+        kind: c.kind,
         baseUrl: existing.baseUrl || c.baseUrl,
         operations,
       });
