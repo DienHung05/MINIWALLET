@@ -79,8 +79,8 @@ module.exports.bootstrap = async function () {
       verifyOtp: { method: 'POST', path: '/verify-otp', request: { otpRef: '$.otpRef', otp: '$.otp', account: '$.account' }, response: { token: '$.data.token', name: '$.data.name' } },
     } },
     { code: 'VISA', name: 'Mock VISA acquirer', kind: 'card', baseUrl: BASE + '/visa', operations: {
-      tokenize: { method: 'POST', path: '/tokenize', request: { cardNumber: '$.cardNumber', threeDsCode: '$.threeDsCode', holderName: '$.holderName' }, response: { token: '$.data.token', masked: '$.data.masked', name: '$.data.name' } },
-      charge: { method: 'POST', path: '/charge', request: { token: '$.token', amount: '$.amount', refId: '$.refId' }, response: { authCode: '$.data.authCode' }, idempotent: true },
+      tokenize: { method: 'POST', path: '/tokenize', request: { cardNo: '$.cardNo', expiry: '$.expiry', holderName: '$.holderName', challenge: '$.challenge' }, response: { token: '$.data.token', masked: '$.data.masked', name: '$.data.name', brand: '$.data.brand' } },
+      charge: { method: 'POST', path: '/charge', request: { token: '$.token', amount: '$.amount', refId: '$.refId', challenge: '$.challenge' }, response: { authCode: '$.data.authCode' }, idempotent: true },
     } },
     { code: 'NAPAS', name: 'Mock NAPAS payout', kind: 'payout', baseUrl: BASE + '/napas', operations: {
       validateAccount: { method: 'POST', path: '/validate', request: { account: '$.account', bankCode: '$.bankCode' }, response: { name: '$.data.name' } },
@@ -90,9 +90,19 @@ module.exports.bootstrap = async function () {
     } },
   ];
   for (const c of connectors) {
-    const existed = await Connector.findOne({ code: c.code });
-    if (!existed) { await Connector.create(c); sails.log.info('Seed: Connector ' + c.code); }
-    else { await Connector.updateOne({ code: c.code }).set({ name: c.name, kind: c.kind, baseUrl: c.baseUrl, operations: c.operations }); }
+    const existing = await Connector.findOne({ code: c.code });
+    if (!existing) {
+      await Connector.create(c);
+      sails.log.info('Seed: Connector ' + c.code);
+    } else {
+      const operations = Object.assign({}, c.operations || {}, existing.operations || {});
+      await Connector.updateOne({ code: c.code }).set({
+        name: existing.name || c.name,
+        kind: existing.kind || c.kind,
+        baseUrl: existing.baseUrl || c.baseUrl,
+        operations,
+      });
+    }
   }
 
   // Config LINK_BANK
@@ -150,9 +160,9 @@ module.exports.bootstrap = async function () {
   for (const w of [
     { ownerType: 'suspense', ownerRef: 'SUSPENSE_PAYOUT' },
     { ownerType: 'nostro', ownerRef: 'NOSTRO_NAPAS' },
-    { ownerType: 'bank', ownerRef: 'CARD_ACQUIRER', balance: 1000000000000 },
+    { ownerType: 'system', ownerRef: 'CARD_ACQUIRER', balance: 1000000000 },
   ]) {
-    if (!(await Pocket.findOne(w))) {
+    if (!(await Pocket.findOne({ ownerType: w.ownerType, ownerRef: w.ownerRef }))) {
       const balance = Number(w.balance || 0);
       const checksum = await sails.helpers.computeChecksum(balance, w.ownerType, w.ownerRef, 'VND');
       await Pocket.create({ ownerType: w.ownerType, ownerRef: w.ownerRef, balance, checksum });
@@ -160,28 +170,75 @@ module.exports.bootstrap = async function () {
     }
   }
 
+  // Config LINK_CARD
+  if (!(await Service.findOne({ code: 'LINK_CARD' }))) {
+    const s = await Service.create({
+      code: 'LINK_CARD', name: 'Liên kết thẻ', serviceType: 'link', currency: 'VND',
+      fieldBuilder: [
+        { name: 'CARDNO', source: 'mapping', from: 'cardNo' },
+        { name: 'EXPIRY', source: 'mapping', from: 'expiry' },
+        { name: 'CARDHOLDER', source: 'mapping', from: 'holderName' },
+      ],
+      feeConfig: { type: 'fixed', value: 0 },
+      auth: { method: '3DS' },
+      hooks: [
+        {
+          phase: 'onPreVerify', connector: 'VISA', operation: 'tokenize',
+          inputMap: { cardNo: 'CARDNO', expiry: 'EXPIRY', holderName: 'CARDHOLDER', challenge: 'OTP' },
+          outputMap: { INSTRTOKEN: 'token', MASKEDCARD: 'masked', HOLDERNAME: 'name', CARDBRAND: 'brand' },
+          onFailure: 'abort',
+        },
+      ],
+      effects: [{
+        type: 'createInstrument',
+        with: {
+          type: 'card',
+          connector: 'VISA',
+          tokenVar: 'INSTRTOKEN',
+          nameVar: 'HOLDERNAME',
+          maskedVar: 'MASKEDCARD',
+          metaMap: { brand: 'CARDBRAND', expiry: 'EXPIRY' },
+        },
+      }],
+      enabled: true,
+    }).fetch();
+    const sid = String(s.id);
+    await TransField.createEach([
+      { service: sid, fieldName: 'CARDNO', fieldFormat: 'string', regex: '^\\d{12,19}$', isRequired: true, order: 1, errorCode: 400 },
+      { service: sid, fieldName: 'EXPIRY', fieldFormat: 'string', regex: '^(0[1-9]|1[0-2])\\/\\d{2}$', isRequired: true, order: 2, errorCode: 400 },
+      { service: sid, fieldName: 'CARDHOLDER', fieldFormat: 'string', isRequired: true, order: 3, errorCode: 400 },
+    ]);
+    await TransDefinition.create({ service: sid, glSteps: [] });
+    sails.log.info('Seed: Service LINK_CARD');
+  }
+
   // Config CARD_TOPUP
   if (!(await Service.findOne({ code: 'CARD_TOPUP' }))) {
     const s = await Service.create({
-      code: 'CARD_TOPUP', name: 'Nạp tiền từ thẻ', serviceType: 'cashin', currency: 'VND',
+      code: 'CARD_TOPUP', name: 'Nạp tiền từ thẻ', serviceType: 'topup', currency: 'VND',
       fieldBuilder: [
         { name: 'CURRENCY', source: 'fixed', value: 'VND' },
         { name: 'AMOUNT', source: 'mapping', from: 'amount' },
         { name: 'INSTRUMENTID', source: 'mapping', from: 'instrumentId' },
         { name: 'RECEIVERID', source: 'query', fn: 'queryPocketByUserId', arg: 'USERID' },
-        { name: 'CARDTOKEN', source: 'instrument', arg: 'INSTRUMENTID', field: 'token', type: 'card', connector: 'VISA' },
+        { name: 'SOURCECARD', source: 'instrument', from: 'instrumentId', type: 'card' },
       ],
       feeConfig: { type: 'fixed', value: 0 },
       auth: { method: '3DS' },
       hooks: [
-        { phase: 'onPreVerify', connector: 'VISA', operation: 'charge', inputMap: { token: 'CARDTOKEN', amount: 'AMOUNT', refId: 'TRANSREFID' }, outputMap: { PARTNERREF: 'authCode' }, onFailure: 'abort' },
+        {
+          phase: 'onPreVerify', connector: 'VISA', operation: 'charge',
+          inputMap: { token: 'SOURCECARD_TOKEN', amount: 'AMOUNT', refId: 'TRANSREFID', challenge: 'OTP' },
+          outputMap: { PARTNERREF: 'authCode' },
+          onFailure: 'abort',
+        },
       ],
       enabled: true,
     }).fetch();
     const sid = String(s.id);
     await TransField.createEach([
       { service: sid, fieldName: 'AMOUNT', fieldFormat: 'number', isRequired: true, order: 1, errorCode: 400 },
-      { service: sid, fieldName: 'INSTRUMENTID', fieldFormat: 'string', isRequired: true, order: 2, errorCode: 400 },
+      { service: sid, fieldName: 'INSTRUMENTID', fieldFormat: 'string', regex: '^[0-9a-fA-F]{24}$', isRequired: true, order: 2, errorCode: 400 },
     ]);
     await TransDefinition.create({
       service: sid,
