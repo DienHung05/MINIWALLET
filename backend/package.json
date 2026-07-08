@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node app.js",
     "dev": "sails lift",
-    "console": "sails console"
+    "console": "sails console",
+    "qa:engine": "node scripts/qa-engine.js"
   },
   "dependencies": {
     "@sailshq/lodash": "^3.10.6",
