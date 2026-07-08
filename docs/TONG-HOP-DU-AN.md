@@ -161,13 +161,21 @@ Da hoan thanh trong cac stage gan day:
 - D2 connector CRUD va trail viewer mo rong.
 - Frontend redesign: AppShell, AuthLayout, UI components, customer/admin dashboard sach hon.
 - Hardening nho: health response dung `res.ok`, history che token/card, bootstrap cap nhat connector operations moi.
+- Engine QA script: `cd backend && npm run qa:engine`.
 
 Con nen lam tiep:
 
-1. E1/E2 QA: test idempotency callback, reversal, timeout va property test bao toan tong so du.
-2. Manual e2e script: register -> login -> link bank/card -> topup -> P2P -> interbank -> callback -> reconcile.
-3. Production readiness neu can demo nghiem tuc: env secrets, email/SMS reset password, logging/audit, rate limit auth.
-4. Tuy chon scope cu: Cash-in va Bill Payment neu giao vien/yeu cau van tinh trong project.
+1. Manual e2e script: register -> login -> link bank/card -> topup -> P2P -> interbank -> callback -> reconcile.
+2. Production readiness neu can demo nghiem tuc: env secrets, email/SMS reset password, logging/audit, rate limit auth.
+3. Tuy chon scope cu: Cash-in va Bill Payment neu giao vien/yeu cau van tinh trong project.
+
+QA script hien co:
+
+- Chay tren database mac dinh `mongodb://127.0.0.1:27017/miniwallet_qa`.
+- Tu lift Sails o port trong, cap nhat connector mock sang port do.
+- Test P2P verify replay, CARD_TOPUP replay, INTERBANK_OUT callback SUCCESS/FAILED replay.
+- Test recover timeout khi trang thai doi tac UNKNOWN.
+- Assert tong so du toan he thong khong doi, checksum khop va khong co vi am.
 
 ## 9. Quy uoc lam viec voi user
 
