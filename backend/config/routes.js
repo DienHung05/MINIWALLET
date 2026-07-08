@@ -22,7 +22,11 @@ module.exports.routes = {
   'POST /mock/visa/:op':  { action: 'mock/visa' },
 
   'POST /api/admin/connector/test': { action: 'admin/test-connector' },
+  'POST /api/admin/connectors/upsert': { action: 'admin/upsert-connector' },
+  'POST /api/admin/connectors/toggle': { action: 'admin/toggle-connector' },
+  'POST /api/admin/connectors/delete': { action: 'admin/delete-connector' },
   'POST /api/admin/recover':        { action: 'admin/recover' },
+  'GET  /api/admin/reconcile':      { action: 'admin/reconcile' },
   'GET  /api/admin/integrity':      { action: 'admin/integrity' },
   'GET  /api/admin/trails':         { action: 'admin/trails' },
   'GET  /api/admin/connectors':     { action: 'admin/connectors' },

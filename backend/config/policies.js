@@ -21,7 +21,11 @@ module.exports.policies = {
   'mock/visa': true,
 
   'admin/test-connector': ['isAuthenticated', 'isOfficer'],
+  'admin/upsert-connector': ['isAuthenticated', 'isOfficer'],
+  'admin/toggle-connector': ['isAuthenticated', 'isOfficer'],
+  'admin/delete-connector': ['isAuthenticated', 'isOfficer'],
   'admin/recover': ['isAuthenticated', 'isOfficer'],
+  'admin/reconcile': ['isAuthenticated', 'isOfficer'],
   'admin/integrity': ['isAuthenticated', 'isOfficer'],
   'admin/trails': ['isAuthenticated', 'isOfficer'],
   'admin/connectors': ['isAuthenticated', 'isOfficer'],

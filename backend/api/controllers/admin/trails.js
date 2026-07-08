@@ -1,3 +1,5 @@
+const { ObjectId } = require('mongodb');
+
 function safeBody(body) {
   const out = Object.assign({}, body || {});
   delete out.OTP;
@@ -19,7 +21,30 @@ function iso(ms) {
 module.exports = async function trails(req, res) {
   const status = req.param('status') || 'processing';
   const limit = Math.min(Math.max(Number(req.param('limit') || 30), 1), 100);
+  const transRefId = `${req.param('transRefId') || ''}`.trim();
+  const serviceCode = `${req.param('serviceCode') || ''}`.trim().toUpperCase();
+  const connector = `${req.param('connector') || ''}`.trim().toUpperCase();
   const filter = status === 'all' ? {} : { status };
+
+  if (transRefId) {
+    if (!ObjectId.isValid(transRefId)) return res.fail(400, 'transRefId không hợp lệ');
+    filter._id = new ObjectId(transRefId);
+  }
+
+  if (serviceCode) {
+    const service = await Service.findOne({ code: serviceCode });
+    if (!service) return res.ok({ trails: [] });
+    filter.service = String(service.id);
+  }
+
+  if (connector) {
+    filter.$or = [
+      { 'transStepLog.connector': connector },
+      { 'outputMessage.TRANSBODY.PARTNERREF': { $exists: true } },
+      { 'outputMessage.TRANSBODY.PARTNERSTATE': { $exists: true } },
+    ];
+  }
+
   const db = sails.getDatastore().manager;
   const rows = await db.collection('transactiontrail')
     .find(filter)
@@ -45,6 +70,7 @@ module.exports = async function trails(req, res) {
       stepLog: t.transStepLog || [],
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
+      durationMs: t.createdAt && t.updatedAt ? Number(t.updatedAt) - Number(t.createdAt) : 0,
       createdAtText: iso(t.createdAt),
       updatedAtText: iso(t.updatedAt),
     });
