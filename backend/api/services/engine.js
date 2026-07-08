@@ -5,6 +5,10 @@ function nativeDb() { const ds = sails.getDatastore(); return { db: ds.manager, 
 function oid(idStr) { return new ObjectId(String(idStr)); }
 function mask(s) { s = `${s || ''}`; return '****' + s.slice(-4); }
 
+function pick(obj, path) {
+  return `${path || ''}`.split('.').filter(Boolean).reduce((cur, key) => (cur ? cur[key] : undefined), obj);
+}
+
 async function checksumOf(p) {
   return await sails.helpers.computeChecksum(p.balance, p.ownerType, p.ownerRef, p.currency || 'VND');
 }
@@ -37,6 +41,20 @@ async function buildFields(service, ctx) {
     if (f.source === 'fixed') body[f.name] = f.value;
     else if (f.source === 'mapping') body[f.name] = params[f.from];
     else if (f.source === 'context') body[f.name] = ctx[f.from] !== undefined ? ctx[f.from] : body[f.from];
+    else if (f.source === 'instrument') {
+      const instrumentId = params[f.from || f.arg] || body[f.arg] || body[f.name];
+      if (!instrumentId || !ObjectId.isValid(`${instrumentId}`)) throw fail(400, 'Nguồn tiền liên kết không hợp lệ');
+      const inst = await Instrument.findOne({ id: `${instrumentId}`, customer: ctx.userId, status: 'active' });
+      if (!inst) throw fail(404, 'Không tìm thấy nguồn tiền liên kết');
+      if (f.type && inst.type !== f.type) throw fail(400, 'Nguồn tiền liên kết không đúng loại');
+      body[f.name] = inst[f.attr || 'id'] || inst.id;
+      body[`${f.name}_ID`] = inst.id;
+      body[`${f.name}_TOKEN`] = inst.token;
+      body[`${f.name}_CONNECTOR`] = inst.connector;
+      body[`${f.name}_MASKED`] = inst.maskedNumber;
+      body[`${f.name}_TYPE`] = inst.type;
+      body[`${f.name}_HOLDERNAME`] = inst.holderName;
+    }
     else if (f.source === 'query') {
       const fn = QUERY_FNS[f.fn]; if (!fn) throw fail(500, 'Query fn chưa hỗ trợ: ' + f.fn);
       body[f.name] = await fn(body[f.arg] !== undefined ? body[f.arg] : params[f.arg]);
@@ -89,7 +107,7 @@ async function validateBusiness(service, body) {
 async function runHooks(service, phase, body) {
   for (const h of (service.hooks || []).filter((x) => x.phase === phase)) {
     const args = {};
-    for (const k of Object.keys(h.inputMap || {})) args[k] = body[h.inputMap[k]];
+    for (const k of Object.keys(h.inputMap || {})) args[k] = pick(body, h.inputMap[k]);
     let out;
     try { out = await sails.helpers.callConnector(h.connector, h.operation, args, body.TRANSREFID); }
     catch (e) { throw fail(502, `Lỗi gọi ${h.connector}.${h.operation}: ${e.message}`); }  // network/timeout (S10 xử lý in-doubt)
@@ -109,12 +127,14 @@ async function applyEffects(service, body, db, session) {
   for (const eff of (service.effects || [])) {
     if (eff.type === 'createInstrument') {
       const w = eff.with || {};
+      const meta = {};
+      for (const key of Object.keys(w.metaMap || {})) meta[key] = body[w.metaMap[key]];
       const doc = {
         _id: new ObjectId(),
         customer: body.USERID, type: w.type || 'bankAccount', connector: w.connector || '',
         token: body[w.tokenVar] || '', holderName: body[w.nameVar] || '',
         maskedNumber: mask(body[w.maskedVar]), status: 'active',
-        meta: { bankCode: body.BANKCODE },
+        meta: Object.assign({ bankCode: body.BANKCODE }, meta),
         createdAt: Date.now(), updatedAt: Date.now(),
       };
       await db.collection('instrument').insertOne(doc, opt);
