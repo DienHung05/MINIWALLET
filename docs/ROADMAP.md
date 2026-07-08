@@ -95,16 +95,16 @@ Chi tiết thiết kế: [`THIET-KE-TUAN-2.md`](./THIET-KE-TUAN-2.md).
 
 # Bổ sung roadmap để hoàn thiện sản phẩm
 
-Roadmap engine phía trên vẫn là xương sống đúng. Để project hoàn thiện như một web ví điện tử dễ dùng, cần thêm các stage sản phẩm sau khi chốt D2/E1:
+Roadmap engine phía trên vẫn là xương sống đúng. Các stage sản phẩm MVP đã được triển khai phần chính; phần còn lại nên tập trung vào hardening, QA và production readiness.
 
 | GĐ | Nội dung | Mục tiêu |
 |----|----------|----------|
-| P0 | Auth customer mới | Customer đăng ký bằng `name/username/phone/password`; đăng nhập bằng username hoặc số điện thoại; admin dùng tài khoản mặc định đã seed. |
-| P1 | Quên/đặt lại mật khẩu | Thêm API + UI `forgot-password` và `reset-password`; dev/MVP có thể trả reset token trong response để demo. |
-| P2 | Design system + AppShell | Tách shell customer/admin, chuẩn hoá button/input/table/badge/empty state/stepper, responsive mobile. |
-| P3 | Customer UX hoàn chỉnh | Dashboard ví, chuyển tiền nội bộ, chuyển liên ngân hàng, liên kết nguồn tiền, nạp tiền, lịch sử giao dịch. |
-| P4 | Admin UX hoàn chỉnh | Tổng quan vận hành, giao dịch/trail viewer, đối soát, connector, công cụ kỹ thuật tách riêng. |
-| P5 | Hoàn thiện nghiệp vụ còn thiếu | D1 reconcile endpoint/UI, D2 connector CRUD thật, B4 LINK_CARD, B5 CARD_TOPUP; cân nhắc Cash-in/Bill Payment nếu vẫn nằm trong scope demo. |
-| P6 | Hardening & QA | Test build frontend, test idempotency callback, reversal, timeout, property test bảo toàn tổng số dư. |
+| P0 | Auth customer mới | Đã làm: customer đăng ký bằng `name/username/phone/password`; đăng nhập bằng username hoặc số điện thoại; admin dùng tài khoản mặc định đã seed. |
+| P1 | Quên/đặt lại mật khẩu | Đã làm API + UI `forgot-password` và `reset-password`; dev/MVP có thể trả reset token trong response để demo. |
+| P2 | Design system + AppShell | Đã làm shell customer/admin, component UI cơ bản, responsive mobile. |
+| P3 | Customer UX hoàn chỉnh | Đã làm dashboard ví, chuyển tiền nội bộ, chuyển liên ngân hàng, liên kết ngân hàng/thẻ, nạp tiền từ thẻ, lịch sử giao dịch. |
+| P4 | Admin UX hoàn chỉnh | Đã làm tổng quan vận hành, giao dịch/trail viewer, đối soát, connector, công cụ kỹ thuật tách riêng. |
+| P5 | Hoàn thiện nghiệp vụ còn thiếu | Đã làm D1 reconcile endpoint/UI, D2 connector CRUD, B4 LINK_CARD, B5 CARD_TOPUP; còn cân nhắc Cash-in/Bill Payment nếu vẫn nằm trong scope demo. |
+| P6 | Hardening & QA | Đang làm: build frontend, test idempotency callback, reversal, timeout, property test bảo toàn tổng số dư. |
 
 Chi tiết UI/UX nằm ở [`UI-UX-REDESIGN.md`](./UI-UX-REDESIGN.md). File tổng hợp để chuyển context nằm ở [`TONG-HOP-DU-AN.md`](./TONG-HOP-DU-AN.md).
