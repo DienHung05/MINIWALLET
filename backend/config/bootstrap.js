@@ -79,16 +79,20 @@ module.exports.bootstrap = async function () {
       verifyOtp: { method: 'POST', path: '/verify-otp', request: { otpRef: '$.otpRef', otp: '$.otp', account: '$.account' }, response: { token: '$.data.token', name: '$.data.name' } },
     } },
     { code: 'VISA', name: 'Mock VISA acquirer', kind: 'card', baseUrl: BASE + '/visa', operations: {
+      tokenize: { method: 'POST', path: '/tokenize', request: { cardNumber: '$.cardNumber', threeDsCode: '$.threeDsCode', holderName: '$.holderName' }, response: { token: '$.data.token', masked: '$.data.masked', name: '$.data.name' } },
       charge: { method: 'POST', path: '/charge', request: { token: '$.token', amount: '$.amount', refId: '$.refId' }, response: { authCode: '$.data.authCode' }, idempotent: true },
     } },
     { code: 'NAPAS', name: 'Mock NAPAS payout', kind: 'payout', baseUrl: BASE + '/napas', operations: {
       validateAccount: { method: 'POST', path: '/validate', request: { account: '$.account', bankCode: '$.bankCode' }, response: { name: '$.data.name' } },
       payout: { method: 'POST', path: '/payout', request: { account: '$.account', amount: '$.amount', refId: '$.refId' }, response: { ref: '$.data.ref', state: '$.data.state' }, idempotent: true },
       status: { method: 'POST', path: '/status', request: { refId: '$.refId' }, response: { state: '$.data.state' } },
+      statement: { method: 'POST', path: '/statement', request: { balance: '$.balance' }, response: { balance: '$.data.balance', currency: '$.data.currency' } },
     } },
   ];
   for (const c of connectors) {
-    if (!(await Connector.findOne({ code: c.code }))) { await Connector.create(c); sails.log.info('Seed: Connector ' + c.code); }
+    const existed = await Connector.findOne({ code: c.code });
+    if (!existed) { await Connector.create(c); sails.log.info('Seed: Connector ' + c.code); }
+    else { await Connector.updateOne({ code: c.code }).set({ name: c.name, kind: c.kind, baseUrl: c.baseUrl, operations: c.operations }); }
   }
 
   // Config LINK_BANK
@@ -117,16 +121,75 @@ module.exports.bootstrap = async function () {
     sails.log.info('Seed: Service LINK_BANK');
   }
 
-  // ── 7) Ví suspense (giữ tiền in-flight) + nostro (gương tiền đối tác) ──
+  // Config LINK_CARD
+  if (!(await Service.findOne({ code: 'LINK_CARD' }))) {
+    const s = await Service.create({
+      code: 'LINK_CARD', name: 'Liên kết thẻ', serviceType: 'link', currency: 'VND',
+      fieldBuilder: [
+        { name: 'CARDNUMBER', source: 'mapping', from: 'cardNumber' },
+        { name: 'HOLDERNAME', source: 'mapping', from: 'holderName' },
+      ],
+      feeConfig: { type: 'fixed', value: 0 },
+      auth: { method: '3DS' },
+      hooks: [
+        { phase: 'onPreVerify', connector: 'VISA', operation: 'tokenize', inputMap: { cardNumber: 'CARDNUMBER', threeDsCode: 'OTP', holderName: 'HOLDERNAME' }, outputMap: { INSTRTOKEN: 'token', CARDMASKED: 'masked', CARDHOLDER: 'name' }, onFailure: 'abort' },
+      ],
+      effects: [{ type: 'createInstrument', with: { type: 'card', connector: 'VISA', tokenVar: 'INSTRTOKEN', nameVar: 'CARDHOLDER', maskedVar: 'CARDNUMBER' } }],
+      enabled: true,
+    }).fetch();
+    const sid = String(s.id);
+    await TransField.createEach([
+      { service: sid, fieldName: 'CARDNUMBER', fieldFormat: 'string', regex: '^\\d{12,19}$', isRequired: true, needSecured: true, order: 1, errorCode: 400 },
+      { service: sid, fieldName: 'HOLDERNAME', fieldFormat: 'string', isRequired: true, order: 2, errorCode: 400 },
+    ]);
+    await TransDefinition.create({ service: sid, glSteps: [] });
+    sails.log.info('Seed: Service LINK_CARD');
+  }
+
+  // ── 7) Ví suspense (giữ tiền in-flight) + nostro (gương tiền đối tác) + funding thẻ ──
   for (const w of [
     { ownerType: 'suspense', ownerRef: 'SUSPENSE_PAYOUT' },
     { ownerType: 'nostro', ownerRef: 'NOSTRO_NAPAS' },
+    { ownerType: 'bank', ownerRef: 'CARD_ACQUIRER', balance: 1000000000000 },
   ]) {
     if (!(await Pocket.findOne(w))) {
-      const checksum = await sails.helpers.computeChecksum(0, w.ownerType, w.ownerRef, 'VND');
-      await Pocket.create({ ownerType: w.ownerType, ownerRef: w.ownerRef, balance: 0, checksum });
+      const balance = Number(w.balance || 0);
+      const checksum = await sails.helpers.computeChecksum(balance, w.ownerType, w.ownerRef, 'VND');
+      await Pocket.create({ ownerType: w.ownerType, ownerRef: w.ownerRef, balance, checksum });
       sails.log.info('Seed: Pocket ' + w.ownerRef);
     }
+  }
+
+  // Config CARD_TOPUP
+  if (!(await Service.findOne({ code: 'CARD_TOPUP' }))) {
+    const s = await Service.create({
+      code: 'CARD_TOPUP', name: 'Nạp tiền từ thẻ', serviceType: 'cashin', currency: 'VND',
+      fieldBuilder: [
+        { name: 'CURRENCY', source: 'fixed', value: 'VND' },
+        { name: 'AMOUNT', source: 'mapping', from: 'amount' },
+        { name: 'INSTRUMENTID', source: 'mapping', from: 'instrumentId' },
+        { name: 'RECEIVERID', source: 'query', fn: 'queryPocketByUserId', arg: 'USERID' },
+        { name: 'CARDTOKEN', source: 'instrument', arg: 'INSTRUMENTID', field: 'token', type: 'card', connector: 'VISA' },
+      ],
+      feeConfig: { type: 'fixed', value: 0 },
+      auth: { method: '3DS' },
+      hooks: [
+        { phase: 'onPreVerify', connector: 'VISA', operation: 'charge', inputMap: { token: 'CARDTOKEN', amount: 'AMOUNT', refId: 'TRANSREFID' }, outputMap: { PARTNERREF: 'authCode' }, onFailure: 'abort' },
+      ],
+      enabled: true,
+    }).fetch();
+    const sid = String(s.id);
+    await TransField.createEach([
+      { service: sid, fieldName: 'AMOUNT', fieldFormat: 'number', isRequired: true, order: 1, errorCode: 400 },
+      { service: sid, fieldName: 'INSTRUMENTID', fieldFormat: 'string', isRequired: true, order: 2, errorCode: 400 },
+    ]);
+    await TransDefinition.create({
+      service: sid,
+      glSteps: [
+        { order: 0, amount: 'AMOUNT', debit: { level: 'systemAccount', target: 'CARD_ACQUIRER' }, credit: { level: 'productLevel', target: 'RECEIVERID' } },
+      ],
+    });
+    sails.log.info('Seed: Service CARD_TOPUP');
   }
 
   // ── 8) Config INTERBANK_OUT (chuyển liên ngân hàng — BẤT ĐỒNG BỘ) ──
