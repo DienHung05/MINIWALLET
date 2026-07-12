@@ -74,11 +74,24 @@ async function lowerSails() {
 }
 
 async function syncConnectorBaseUrls() {
-  const address = sails.hooks.http.server.address();
-  const base = 'http://127.0.0.1:' + address.port + '/mock';
+  const base = serverBaseUrl() + '/mock';
   await Connector.updateOne({ code: 'VCB' }).set({ baseUrl: base + '/vcb' });
   await Connector.updateOne({ code: 'VISA' }).set({ baseUrl: base + '/visa' });
   await Connector.updateOne({ code: 'NAPAS' }).set({ baseUrl: base + '/napas' });
+}
+
+function serverBaseUrl() {
+  const address = sails.hooks.http.server.address();
+  return 'http://127.0.0.1:' + address.port;
+}
+
+async function postJson(pathname, body) {
+  const res = await fetch(serverBaseUrl() + pathname, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  return await res.json();
 }
 
 async function createCustomer(seed, balance) {
@@ -100,6 +113,32 @@ async function createCustomer(seed, balance) {
   }).fetch();
   const updated = await Customer.updateOne(customer.id).set({ pocket: pocket.id });
   return Object.assign({}, updated, { password });
+}
+
+async function runAuthApiChecks() {
+  const missing = await postJson('/api/customer/register', {});
+  assert(missing.err === 400, 'register missing fields should return business error 400');
+  assert(!/pin/i.test(missing.message || ''), 'register missing fields message should not mention pin');
+  assert(/username/i.test(missing.message || ''), 'register missing fields should mention username');
+  assert(/mật khẩu/i.test(missing.message || ''), 'register missing fields should mention password');
+
+  const username = 'qa_api_user';
+  const phone = '0910000099';
+  const password = 'pass123';
+  const registered = await postJson('/api/customer/register', {
+    name: 'QA API User',
+    username,
+    phone,
+    password,
+  });
+  assert(registered.err === 200, 'register should accept username/phone/password: ' + JSON.stringify(registered));
+
+  const byUsername = await postJson('/api/customer/login', { identifier: username, password });
+  assert(byUsername.err === 200 && byUsername.token, 'login by username/password should return token');
+
+  const byPhone = await postJson('/api/customer/login', { identifier: phone, password });
+  assert(byPhone.err === 200 && byPhone.token, 'login by phone/password should return token');
+  printOk('Customer register/login API uses username or phone with password');
 }
 
 async function sumBalances() {
@@ -265,6 +304,7 @@ async function runTimeoutRecovery(engine, customer, baseline) {
 async function main() {
   await liftSails();
   await syncConnectorBaseUrls();
+  await runAuthApiChecks();
 
   const engine = require('../api/services/engine');
   const alice = await createCustomer('0910000001', 1000000);

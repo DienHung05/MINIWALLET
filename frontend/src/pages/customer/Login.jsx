@@ -17,7 +17,7 @@ export default function CustomerLogin() {
     e.preventDefault();
     setErr(''); setLoading(true);
     try {
-      const res = await api.post('/customer/login', { identifier, password });
+      const res = await api.post('/customer/login', { identifier: identifier.trim(), password });
       auth.login({ token: res.token, user: Object.assign({ role: 'customer' }, res.customer || {}) });
       nav('/app');
     } catch (e) { setErr(e.message); } finally { setLoading(false); }
@@ -32,10 +32,10 @@ export default function CustomerLogin() {
     >
       <form onSubmit={submit}>
         <Field label="Username hoặc số điện thoại">
-          <input placeholder="Ví dụ: linh.nguyen hoặc 0912345678" value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
+          <input placeholder="Ví dụ: linh.nguyen hoặc 0912345678" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" required />
         </Field>
         <Field label="Mật khẩu">
-          <input placeholder="Nhập mật khẩu" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input placeholder="Nhập mật khẩu" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
         </Field>
         <Button className="full-width" disabled={loading}>{loading ? 'Đang đăng nhập...' : 'Đăng nhập'}</Button>
       </form>

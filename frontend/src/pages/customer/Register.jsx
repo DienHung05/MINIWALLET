@@ -17,9 +17,11 @@ export default function Register() {
     async function submit(e) {
         e.preventDefault(); setErr(''); setLoading(true);
         try {
+            const cleanUsername = username.trim().toLowerCase();
+            const cleanPhone = phone.replace(/\s/g, '');
             if (password !== confirmPassword) throw new Error('Mật khẩu nhập lại chưa khớp');
-            await api.post('/customer/register', { name, username, phone, password });
-            const res = await api.post('/customer/login', { identifier: username || phone, password });
+            await api.post('/customer/register', { name: name.trim(), username: cleanUsername, phone: cleanPhone, password });
+            const res = await api.post('/customer/login', { identifier: cleanUsername || cleanPhone, password });
             auth.login({ token: res.token, user: Object.assign({ role: 'customer' }, res.customer || {}) });
             nav('/app');
         } catch (e) { setErr(e.message); } finally { setLoading(false); }
@@ -34,19 +36,19 @@ export default function Register() {
         >
             <form onSubmit={submit}>
                 <Field label="Họ tên">
-                    <input placeholder="Nguyễn Linh" value={name} onChange={(e) => setName(e.target.value)} />
+                    <input placeholder="Nguyễn Linh" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
                 </Field>
                 <Field label="Username">
-                    <input placeholder="linh.nguyen" value={username} onChange={(e) => setUsername(e.target.value)} />
+                    <input placeholder="linh.nguyen" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase())} autoComplete="username" required />
                 </Field>
                 <Field label="Số điện thoại">
-                    <input placeholder="0912345678" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                    <input placeholder="0912345678" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" inputMode="tel" required />
                 </Field>
                 <Field label="Mật khẩu">
-                    <input placeholder="Ít nhất 6 ký tự" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                    <input placeholder="Ít nhất 6 ký tự" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required />
                 </Field>
                 <Field label="Nhập lại mật khẩu">
-                    <input placeholder="Nhập lại mật khẩu" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                    <input placeholder="Nhập lại mật khẩu" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" required />
                 </Field>
                 <Button className="full-width" disabled={loading}>{loading ? 'Đang tạo tài khoản...' : 'Đăng ký'}</Button>
             </form>

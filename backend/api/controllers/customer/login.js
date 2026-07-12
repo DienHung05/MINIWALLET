@@ -1,7 +1,7 @@
 module.exports = async function login(req, res) {
   const params = req.allParams();
   const identifier = `${params.identifier || params.username || params.phone || ''}`.trim().toLowerCase();
-  const password = params.password || params.pin;
+  const password = params.password;
 
   if (!identifier || !password) return res.fail(400, 'Thiếu tên đăng nhập/số điện thoại hoặc mật khẩu');
 

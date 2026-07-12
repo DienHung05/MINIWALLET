@@ -57,7 +57,7 @@ Admin:
 - Login: `POST /api/officer/login` voi `{ username, password }`.
 - Tai khoan mac dinh seed trong `backend/config/bootstrap.js`: `admin/admin123`.
 
-Luu y: Engine verify giao dich van dung auth method `PIN` cho P2P/interbank va `3DS`/`OTP` cho luong doi tac. Trong MVP, `pinHash` dang duoc set cung hash voi password de customer dung mot mat khau xac nhan.
+Luu y: Ben ngoai FE/API chi dung `password` cho dang nhap, dang ky va xac nhan giao dich. Engine van giu ten method noi bo legacy `PIN` cho P2P/interbank, nhung `pinHash` duoc set cung hash voi password de customer dung mot mat khau xac nhan.
 
 ## 4. Domain va model quan trong
 
