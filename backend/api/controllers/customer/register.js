@@ -1,13 +1,13 @@
 module.exports = async function register(req, res) {
   const params = req.allParams();
-  const phone = `${params.phone || ''}`.trim();
-  const username = `${params.username || phone}`.trim().toLowerCase();
-  const password = params.password || params.pin;
+  const phone = `${params.phone || ''}`.replace(/\s/g, '');
+  const username = `${params.username || ''}`.trim().toLowerCase();
+  const password = params.password;
   const name = `${params.name || ''}`.trim();
 
-  if (!phone || !password) return res.fail(400, 'Thiếu số điện thoại hoặc mật khẩu');
+  if (!username || !phone || !password) return res.fail(400, 'Thiếu username, số điện thoại hoặc mật khẩu');
   if (!/^0\d{9}$/.test(phone)) return res.fail(400, 'Số điện thoại không hợp lệ');
-  if (params.username && !/^[a-z0-9._-]{3,32}$/.test(username)) {
+  if (!/^[a-z0-9._-]{3,32}$/.test(username)) {
     return res.fail(400, 'Username chỉ gồm chữ thường, số, dấu chấm, gạch dưới hoặc gạch ngang');
   }
   if (`${password}`.length < 6) return res.fail(400, 'Mật khẩu phải có ít nhất 6 ký tự');

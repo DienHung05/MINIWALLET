@@ -50,17 +50,27 @@ const SERVICES = {
 };
 
 function authPlaceholder(method) {
-  if (method === 'PIN') return 'Nhập mật khẩu/PIN xác nhận';
+  if (method === 'PASSWORD') return 'Nhập mật khẩu xác nhận';
   if (method === 'OTP') return 'Nhập mã OTP';
   if (method === '3DS') return 'Nhập mã xác thực thẻ';
   return 'Nhập mã xác nhận';
 }
 
+function authLabel(method) {
+  if (method === 'PASSWORD') return 'Xác nhận bằng mật khẩu';
+  if (method === 'OTP') return 'Xác nhận OTP';
+  if (method === '3DS') return 'Xác thực thẻ';
+  return 'Xác nhận giao dịch';
+}
+
 function authPayload(method, credential) {
   if (method === 'OTP') return { otp: credential };
   if (method === '3DS') return { threeDs: credential };
-  if (method === 'PIN') return { pin: credential };
   return { password: credential };
+}
+
+function normalizeAuthMethod(method) {
+  return method === 'PIN' ? 'PASSWORD' : method;
 }
 
 export default function NewTransaction() {
@@ -70,7 +80,7 @@ export default function NewTransaction() {
   const [params, setParams] = useState({});
   const [step, setStep] = useState('form');
   const [preview, setPreview] = useState(null);
-  const [authMethod, setAuthMethod] = useState('PIN');
+  const [authMethod, setAuthMethod] = useState('PASSWORD');
   const [cred, setCred] = useState('');
   const [result, setResult] = useState(null);
   const [err, setErr] = useState('');
@@ -109,7 +119,7 @@ export default function NewTransaction() {
       const pv = await api.post('/txn/request', { serviceCode, parameters: params });
       const cf = await api.post('/txn/confirm', { transRefId: pv.transRefId });
       setPreview(pv);
-      setAuthMethod(cf.authMethod);
+      setAuthMethod(normalizeAuthMethod(cf.authMethod));
       setStep('confirm');
     } catch (e) {
       setErr(e.message);
@@ -218,8 +228,8 @@ export default function NewTransaction() {
                 </p>
               )}
             </div>
-            <Field label={`Xác nhận ${authMethod}`}>
-              <input placeholder={authPlaceholder(authMethod)} type="password" value={cred} onChange={(e) => setCred(e.target.value)} />
+            <Field label={authLabel(authMethod)}>
+              <input placeholder={authPlaceholder(authMethod)} type="password" value={cred} onChange={(e) => setCred(e.target.value)} autoComplete="current-password" required />
             </Field>
             <div className="button-row">
               <Button disabled={busy}>{busy ? 'Đang xử lý...' : 'Xác nhận'}</Button>

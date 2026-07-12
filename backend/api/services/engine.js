@@ -290,8 +290,8 @@ async function processVerify(transRefId, credential, ctx) {
     const method = (service.auth && service.auth.method) || 'NONE';
     if (method === 'PIN') {
       const bcrypt = require('bcryptjs');
-      if (!credential) throw fail(401, 'Thiếu PIN');
-      if (!(await bcrypt.compare(`${credential}`, ctx.user.pinHash))) throw fail(401, 'PIN không đúng');
+      if (!credential) throw fail(401, 'Thiếu mật khẩu xác nhận');
+      if (!(await bcrypt.compare(`${credential}`, ctx.user.pinHash))) throw fail(401, 'Mật khẩu xác nhận không đúng');
     }
     await validateBusiness(service, body);
     await runHooks(service, 'onPreVerify', body);   // vd validateAccount / verifyOtp / charge thẻ

@@ -279,7 +279,7 @@ Các cụm nên làm tiếp:
 | P4 | Backend còn thiếu | Đã hoàn thành D1 reconcile, D2 connector CRUD, B4 LINK_CARD, B5 CARD_TOPUP trong MVP. |
 | P5 | Hardening | Build pass, test idempotency/reversal/timeout, property test bảo toàn tổng số dư. |
 
-Lưu ý quan trọng: redesign đổi login/register sang `password`, nhưng engine hiện vẫn dùng `PIN` để xác thực giao dịch. Có thể giữ PIN giao dịch trong MVP, hoặc đổi sang “mật khẩu xác nhận giao dịch” ở một stage riêng để tránh lẫn logic auth với logic verify transaction.
+Lưu ý quan trọng: UI/API customer dùng `password` cho đăng nhập, đăng ký và xác nhận giao dịch. Engine vẫn có tên method nội bộ `PIN` trong config cũ, nhưng UI hiển thị là “mật khẩu xác nhận” để người dùng không phải hiểu thuật ngữ kỹ thuật.
 
 ## 9. Acceptance checklist
 
