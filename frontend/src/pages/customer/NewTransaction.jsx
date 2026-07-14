@@ -6,8 +6,8 @@ import { formatMoney } from '../../utils/format.js';
 
 const SERVICES = {
   P2P: {
-    label: 'Chuyển tiền nội bộ',
-    group: 'Chuyển tiền',
+    label: 'Chuyển nội bộ',
+    description: 'Gửi tiền tới số điện thoại trong Mini Wallet.',
     fields: [
       { name: 'receiverPhone', label: 'Số điện thoại người nhận' },
       { name: 'amount', label: 'Số tiền', type: 'number' },
@@ -15,7 +15,7 @@ const SERVICES = {
   },
   INTERBANK_OUT: {
     label: 'Chuyển liên ngân hàng',
-    group: 'Chuyển tiền',
+    description: 'Chuyển tiền tới tài khoản ngân hàng ngoài hệ thống.',
     fields: [
       { name: 'destBank', label: 'Mã ngân hàng' },
       { name: 'destAccount', label: 'Số tài khoản' },
@@ -24,7 +24,7 @@ const SERVICES = {
   },
   LINK_BANK: {
     label: 'Liên kết ngân hàng',
-    group: 'Nguồn tiền',
+    description: 'Kết nối tài khoản ngân hàng bằng OTP.',
     fields: [
       { name: 'bankCode', label: 'Mã ngân hàng' },
       { name: 'accountNo', label: 'Số tài khoản' },
@@ -32,7 +32,7 @@ const SERVICES = {
   },
   LINK_CARD: {
     label: 'Liên kết thẻ',
-    group: 'Nguồn tiền',
+    description: 'Thêm thẻ và lưu dưới dạng số đã che.',
     fields: [
       { name: 'cardNo', label: 'Số thẻ' },
       { name: 'expiry', label: 'Ngày hết hạn', placeholder: 'MM/YY' },
@@ -41,13 +41,40 @@ const SERVICES = {
   },
   CARD_TOPUP: {
     label: 'Nạp tiền từ thẻ',
-    group: 'Nạp tiền',
+    description: 'Nạp tiền vào ví từ thẻ đã liên kết.',
     fields: [
       { name: 'instrumentId', label: 'Thẻ đã liên kết', type: 'cardInstrument' },
       { name: 'amount', label: 'Số tiền', type: 'number' },
     ],
   },
 };
+
+const SERVICE_GROUPS = {
+  TRANSFER: {
+    eyebrow: 'Giao dịch',
+    title: 'Tạo giao dịch',
+    description: 'Chỉ gồm các luồng chuyển tiền.',
+    services: ['P2P', 'INTERBANK_OUT'],
+  },
+  LINK_SOURCE: {
+    eyebrow: 'Nguồn tiền',
+    title: 'Liên kết nguồn tiền',
+    description: 'Chỉ gồm liên kết ngân hàng và liên kết thẻ.',
+    services: ['LINK_BANK', 'LINK_CARD'],
+  },
+  TOPUP: {
+    eyebrow: 'Nạp tiền',
+    title: 'Nạp tiền từ thẻ',
+    description: 'Luồng nạp tiền được tách riêng khỏi chuyển tiền và liên kết.',
+    services: ['CARD_TOPUP'],
+  },
+};
+
+const SERVICE_GROUP_ORDER = ['TRANSFER', 'LINK_SOURCE', 'TOPUP'];
+
+function groupForService(serviceCode) {
+  return SERVICE_GROUP_ORDER.find((key) => SERVICE_GROUPS[key].services.includes(serviceCode)) || 'TRANSFER';
+}
 
 function authPlaceholder(method) {
   if (method === 'PASSWORD') return 'Nhập mật khẩu xác nhận';
@@ -76,6 +103,7 @@ function normalizeAuthMethod(method) {
 export default function NewTransaction() {
   const [searchParams] = useSearchParams();
   const initialService = SERVICES[searchParams.get('service')] ? searchParams.get('service') : 'P2P';
+  const [groupKey, setGroupKey] = useState(groupForService(initialService));
   const [serviceCode, setServiceCode] = useState(initialService);
   const [params, setParams] = useState({});
   const [step, setStep] = useState('form');
@@ -104,6 +132,15 @@ export default function NewTransaction() {
 
   function switchService(next) {
     setServiceCode(next);
+    setGroupKey(groupForService(next));
+    setParams({});
+    setErr('');
+  }
+
+  function switchGroup(nextGroup) {
+    const nextService = SERVICE_GROUPS[nextGroup].services[0];
+    setGroupKey(nextGroup);
+    setServiceCode(nextService);
     setParams({});
     setErr('');
   }
@@ -127,6 +164,8 @@ export default function NewTransaction() {
       setBusy(false);
     }
   }
+
+  const activeGroup = SERVICE_GROUPS[groupKey];
 
   async function doVerify(e) {
     e.preventDefault();
@@ -187,8 +226,8 @@ export default function NewTransaction() {
     <div className="page-stack">
       <section className="panel">
         <SectionHeader
-          eyebrow="Giao dịch"
-          title="Tạo giao dịch mới"
+          eyebrow={activeGroup.eyebrow}
+          title={activeGroup.title}
           action={<Link to="/app">Về ví của tôi</Link>}
         />
 
@@ -200,11 +239,33 @@ export default function NewTransaction() {
 
         {step === 'form' && (
           <form onSubmit={doRequest} className="form-grid">
-            <Field label="Dịch vụ">
-              <select value={serviceCode} onChange={(e) => switchService(e.target.value)}>
-                {Object.entries(SERVICES).map(([k, v]) => <option key={k} value={k}>{v.group} · {v.label}</option>)}
-              </select>
-            </Field>
+            <div className="service-group-tabs" role="tablist" aria-label="Nhóm thao tác">
+              {SERVICE_GROUP_ORDER.map((key) => (
+                <button
+                  type="button"
+                  key={key}
+                  className={groupKey === key ? 'active' : ''}
+                  onClick={() => switchGroup(key)}
+                >
+                  {SERVICE_GROUPS[key].title}
+                </button>
+              ))}
+            </div>
+            <p className="muted service-group-description">{activeGroup.description}</p>
+            {activeGroup.services.length > 1 ? (
+              <Field label="Chọn loại thao tác">
+                <select value={serviceCode} onChange={(e) => switchService(e.target.value)}>
+                  {activeGroup.services.map((code) => (
+                    <option key={code} value={code}>{SERVICES[code].label}</option>
+                  ))}
+                </select>
+              </Field>
+            ) : (
+              <div className="single-service-card">
+                <b>{SERVICES[serviceCode].label}</b>
+                <span>{SERVICES[serviceCode].description}</span>
+              </div>
+            )}
             {SERVICES[serviceCode].fields.map(renderField)}
             {serviceCode === 'CARD_TOPUP' && cardInstruments.length === 0 && (
               <EmptyState

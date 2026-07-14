@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../../api/client.js";
 import { useAuth } from "../../auth/AuthContext.jsx";
-import { Alert, Button, DataTable, EmptyState, SectionHeader, StatusBadge } from "../../components/ui.jsx";
+import { Alert, DataTable, EmptyState, SectionHeader, StatusBadge } from "../../components/ui.jsx";
 import { formatMoney, serviceLabel, sourceTypeLabel, statusLabel } from "../../utils/format.js";
 
 export default function Dashboard() {
@@ -10,6 +10,8 @@ export default function Dashboard() {
   const [bal, setBal] = useState(null);
   const [instruments, setInstruments] = useState([]);
   const [history, setHistory] = useState([]);
+  const [transferService, setTransferService] = useState('P2P');
+  const [sourceService, setSourceService] = useState('LINK_BANK');
   const [err, setErr] = useState('');
 
   async function load() {
@@ -38,21 +40,49 @@ export default function Dashboard() {
           <h1>Xin chào {user?.name || user?.username || user?.phone}</h1>
           <p className="balance-text">{bal ? formatMoney(bal.balance, bal.currency) : '...'}</p>
         </div>
-        <div className="quick-actions">
-          <Button onClick={load}>Làm mới</Button>
-          <Link className="btn btn-primary" to="/app/new?service=P2P">Chuyển tiền</Link>
-          <Link className="btn btn-secondary" to="/app/new?service=CARD_TOPUP">Nạp từ thẻ</Link>
-          <Link className="btn btn-secondary" to="/app/new?service=LINK_CARD">Liên kết thẻ</Link>
-        </div>
       </section>
 
       <Alert tone="error">{err}</Alert>
 
       <section className="panel">
+        <SectionHeader eyebrow="Thao tác" title="Bạn muốn làm gì?" />
+        <div className="action-group-grid">
+          <div className="action-group-card">
+            <span>Tạo giao dịch</span>
+            <p>Chuyển tiền trong ví hoặc chuyển ra ngân hàng.</p>
+            <div className="action-select-row">
+              <select aria-label="Chọn loại giao dịch" value={transferService} onChange={(e) => setTransferService(e.target.value)}>
+                <option value="P2P">Chuyển nội bộ</option>
+                <option value="INTERBANK_OUT">Chuyển liên ngân hàng</option>
+              </select>
+              <Link className="btn btn-primary btn-compact" to={`/app/new?service=${transferService}`}>Tiếp tục</Link>
+            </div>
+          </div>
+          <div className="action-group-card">
+            <span>Liên kết nguồn tiền</span>
+            <p>Thêm tài khoản ngân hàng hoặc thẻ để dùng cho ví.</p>
+            <div className="action-select-row">
+              <select aria-label="Chọn nguồn tiền cần liên kết" value={sourceService} onChange={(e) => setSourceService(e.target.value)}>
+                <option value="LINK_BANK">Liên kết ngân hàng</option>
+                <option value="LINK_CARD">Liên kết thẻ</option>
+              </select>
+              <Link className="btn btn-secondary btn-compact" to={`/app/new?service=${sourceService}`}>Tiếp tục</Link>
+            </div>
+          </div>
+          <div className="action-group-card">
+            <span>Nạp tiền</span>
+            <p>Nạp tiền vào ví từ thẻ đã liên kết.</p>
+            <div className="button-row">
+              <Link className="btn btn-secondary btn-compact" to="/app/new?service=CARD_TOPUP">Nạp tiền từ thẻ</Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="panel">
         <SectionHeader
           eyebrow="Nguồn tiền"
           title="Nguồn tiền đã liên kết"
-          action={<Link className="btn btn-secondary" to="/app/new?service=LINK_BANK">Liên kết ngân hàng</Link>}
         />
         <DataTable
           rows={instruments}
@@ -71,7 +101,6 @@ export default function Dashboard() {
         <SectionHeader
           eyebrow="Lịch sử"
           title="Giao dịch gần đây"
-          action={<Link className="btn btn-secondary" to="/app/new">Tạo giao dịch</Link>}
         />
         {history.length === 0 ? (
           <EmptyState title="Chưa có giao dịch" />

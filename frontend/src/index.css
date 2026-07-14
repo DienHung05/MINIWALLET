@@ -222,6 +222,46 @@ code {
   justify-content: flex-end;
 }
 
+.action-group-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.action-group-card {
+  background: #f8fafc;
+  border: 1px solid #dce5f2;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  min-height: 164px;
+  padding: 16px;
+}
+
+.action-group-card span {
+  color: #172033;
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.action-group-card p {
+  color: #65748b;
+  margin: 0;
+}
+
+.action-select-row {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.action-select-row select {
+  min-height: 40px;
+  padding-bottom: 8px;
+  padding-top: 8px;
+}
+
 .section-header {
   align-items: center;
   display: flex;
@@ -310,6 +350,11 @@ code {
   color: #a91919;
 }
 
+.btn-compact {
+  min-height: 38px;
+  padding: 7px 12px;
+}
+
 .button-link {
   align-items: center;
   background: #155eef;
@@ -394,6 +439,51 @@ code {
 .stepper span.active {
   background: #dfe9ff;
   color: #155eef;
+}
+
+.service-group-tabs {
+  background: #f8fafc;
+  border: 1px solid #dce5f2;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 6px;
+}
+
+.service-group-tabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #46566f;
+  cursor: pointer;
+  font-weight: 850;
+  min-height: 42px;
+  padding: 9px 10px;
+}
+
+.service-group-tabs button.active {
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(35, 50, 75, 0.08);
+  color: #155eef;
+}
+
+.service-group-description {
+  margin: -4px 0 0;
+}
+
+.single-service-card {
+  background: #f8fafc;
+  border: 1px solid #dce5f2;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+}
+
+.single-service-card span {
+  color: #65748b;
+  font-size: 13px;
 }
 
 .tabs {
@@ -570,6 +660,9 @@ th {
   }
   .grid.two,
   .grid.four,
+  .action-group-grid,
+  .action-select-row,
+  .service-group-tabs,
   .metric-grid,
   .stepper {
     grid-template-columns: 1fr;
