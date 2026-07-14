@@ -121,6 +121,13 @@ export default function AdminDashboard() {
     }
   }
 
+  function chooseForCallback(t) {
+    setRefId(t.transRefId);
+    setState('SUCCESS');
+    setTab('tools');
+    setOut(`Đã chọn giao dịch ${t.transRefId} cho callback NAPAS.\nChọn trạng thái đối tác rồi bấm "Gửi callback".`);
+  }
+
   function editConnector(c) {
     setConnectorForm({
       code: c.code,
@@ -177,7 +184,6 @@ export default function AdminDashboard() {
         <SectionHeader
           eyebrow="Admin"
           title="Vận hành hệ thống"
-          action={<Button onClick={refreshAll}>Làm mới</Button>}
         />
         <div className="tabs">
           {TABS.map(([key, label]) => (
@@ -234,7 +240,7 @@ export default function AdminDashboard() {
                 label: '',
                 render: (t) => (
                   <div className="row-actions">
-                    <Button variant="secondary" onClick={() => setRefId(t.transRefId)}>Chọn</Button>
+                    <Button variant="secondary" onClick={() => chooseForCallback(t)}>Chọn</Button>
                     <Button variant="ghost" onClick={() => setSelectedTrail(t)}>Chi tiết</Button>
                   </div>
                 ),
