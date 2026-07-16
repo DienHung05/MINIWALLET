@@ -1,17 +1,16 @@
 module.exports = async function login(req, res) {
   const params = req.allParams();
-  const identifier = `${params.identifier || params.username || params.phone || ''}`.trim().toLowerCase();
-  const password = params.password;
+  const phone = `${params.phone || ''}`.replace(/\s/g, '');
+  const pin = `${params.pin || ''}`;
 
-  if (!identifier || !password) return res.fail(400, 'Thiếu tên đăng nhập/số điện thoại hoặc mật khẩu');
+  if (!phone || !pin) return res.fail(400, 'Thiếu số điện thoại hoặc PIN');
 
-  const customer = await Customer.findOne({ or: [{ username: identifier }, { phone: identifier }] });
+  const customer = await Customer.findOne({ phone });
   if (!customer) return res.fail(401, 'Sai thông tin đăng nhập');
   if (customer.status !== 'active') return res.fail(403, 'Tài khoản đang bị khoá');
 
   const bcrypt = require('bcryptjs');
-  const hash = customer.passwordHash || customer.pinHash;
-  if (!hash || !(await bcrypt.compare(`${password}`, hash))) return res.fail(401, 'Sai thông tin đăng nhập');
+  if (!customer.pinHash || !(await bcrypt.compare(pin, customer.pinHash))) return res.fail(401, 'Sai thông tin đăng nhập');
 
   const jwt = require('jsonwebtoken');
   const token = jwt.sign({ sub: customer.id, role: 'customer' },
@@ -21,7 +20,6 @@ module.exports = async function login(req, res) {
     role: 'customer',
     customer: {
       id: customer.id,
-      username: customer.username,
       phone: customer.phone,
       name: customer.name,
     },

@@ -5,7 +5,6 @@ module.exports = async function me(req, res) {
       user: {
         id: u.id,
         role: 'customer',
-        username: u.username,
         phone: u.phone,
         name: u.name,
         status: u.status,

@@ -6,8 +6,8 @@ import AuthLayout from '../../components/AuthLayout.jsx';
 import { Alert, Button, Field } from '../../components/ui.jsx';
 
 export default function CustomerLogin() {
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [pin, setPin] = useState('');
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
   const auth = useAuth();
@@ -17,7 +17,7 @@ export default function CustomerLogin() {
     e.preventDefault();
     setErr(''); setLoading(true);
     try {
-      const res = await api.post('/customer/login', { identifier: identifier.trim(), password });
+      const res = await api.post('/customer/login', { phone: phone.replace(/\s/g, ''), pin });
       auth.login({ token: res.token, user: Object.assign({ role: 'customer' }, res.customer || {}) });
       nav('/app');
     } catch (e) { setErr(e.message); } finally { setLoading(false); }
@@ -27,20 +27,20 @@ export default function CustomerLogin() {
     <AuthLayout
       eyebrow="Khách hàng"
       title="Đăng nhập ví"
-      subtitle="Dùng username hoặc số điện thoại đã đăng ký."
+      subtitle="Dùng số điện thoại và mã PIN đã đăng ký."
       footer={<span>Chưa có tài khoản? <Link to="/register">Đăng ký</Link></span>}
     >
       <form onSubmit={submit}>
-        <Field label="Username hoặc số điện thoại">
-          <input placeholder="Ví dụ: linh.nguyen hoặc 0912345678" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" required />
+        <Field label="Số điện thoại">
+          <input placeholder="0912345678" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" inputMode="tel" required />
         </Field>
-        <Field label="Mật khẩu">
-          <input placeholder="Nhập mật khẩu" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+        <Field label="PIN">
+          <input placeholder="Nhập PIN" type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} autoComplete="current-password" inputMode="numeric" required />
         </Field>
         <Button className="full-width" disabled={loading}>{loading ? 'Đang đăng nhập...' : 'Đăng nhập'}</Button>
       </form>
       <Alert tone="error">{err}</Alert>
-      <p className="form-note"><Link to="/forgot-password">Quên mật khẩu?</Link></p>
+      <p className="form-note"><Link to="/forgot-pin">Quên PIN?</Link></p>
     </AuthLayout>
   );
 }

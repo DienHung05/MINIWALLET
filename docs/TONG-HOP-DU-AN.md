@@ -1,19 +1,19 @@
 # Tong Hop Du An - Mini Wallet
 
-File nay la ban tom tat de chuyen context cho agent moi. Cap nhat sau stage frontend redesign va backend hardening.
-
 ## 1. Muc tieu san pham
 
-Mini Wallet la vi dien tu demo dung backend Sails + MongoDB va frontend React + Vite.
+Mini Wallet la vi dien tu demo dung backend Sails + MongoDB va frontend React + Vite. Du an bam theo `docs/MINIWALLET.md`: Customer dung vi de chuyen tien va thanh toan hoa don; Officer/Admin cau hinh nghiep vu, nap tien cho khach va van hanh he thong.
 
 Muc tieu chinh:
 
-- Customer dang ky, dang nhap, xem so du, chuyen tien, lien ket nguon tien, nap tien va xem lich su.
-- Admin kiem soat van hanh: integrity/checksum, giao dich dang xu ly, callback/recover, connector CRUD va doi soat.
-- Engine giao dich chay theo config Request -> Confirm -> Verify -> Callback, han che sua code engine khi them nghiep vu.
-- Tien phai an toan: khong am, checksum khop, idempotency, reversal dung, tien async nam o suspense truoc khi chot.
+- Customer dang ky/dang nhap bang so dien thoai + PIN.
+- Customer xem so du, chuyen tien P2P, thanh toan hoa don, xem lich su.
+- Officer thuc hien Cash-in tu vi Bank sang vi Customer.
+- Admin quan ly Service, Transaction Design, Vi, Biller, Customer, Trail, History.
+- Engine chay theo config Request -> Confirm -> Verify, tien chi chay o Verify/Callback.
+- So du an toan: double-entry, checksum, idempotency, reversal, suspense/nostro cho async.
 
-## 2. Stack va cach chay
+## 2. Cach chay
 
 Backend:
 
@@ -31,161 +31,141 @@ npm install
 npm run dev
 ```
 
-Mac dinh frontend Vite chay o `http://localhost:5173/`. Backend Sails dung `http://localhost:1337/`.
+Frontend mac dinh `http://localhost:5173/`. Backend Sails `http://localhost:1337/`.
 
-Quy uoc API:
-
-- Response API dung envelope `{ err, message, ...data }`.
-- `err === 200` la thanh cong; loi nghiep vu co the van tra HTTP 200 nhung `err` khac 200.
-- Frontend xu ly envelope tap trung o `frontend/src/api/client.js`.
-- Backend API dung `res.ok()` va `res.fail()`; mock connector co the dung response rieng de gia lap doi tac.
-- Policies deny-by-default trong `backend/config/policies.js`.
+API dung envelope `{ err, message, ...data }`; `err === 200` la thanh cong.
 
 ## 3. Auth hien tai
 
 Customer:
 
-- Register: `POST /api/customer/register` voi `{ name, username, phone, password }`.
-- Login: `POST /api/customer/login` voi `{ identifier, password }`.
-- `identifier` co the la username hoac so dien thoai.
-- Forgot password: `POST /api/customer/forgot-password`.
-- Reset password: `POST /api/customer/reset-password`.
-- Model `Customer` co `username`, `phone`, `passwordHash`, `pinHash`, `name`, `pocket`, `status`, reset token fields.
+- Register: `POST /api/customer/register` voi `{ name, phone, pin }`.
+- Login: `POST /api/customer/login` voi `{ phone, pin }`.
+- Forgot PIN: `POST /api/customer/forgot-pin`.
+- Reset PIN: `POST /api/customer/reset-pin` voi `{ resetToken, pin }`.
+- Model `Customer` dung `phone`, `pinHash`, `name`, `pocket`, `status`, `pinResetTokenHash`, `pinResetExpiresAt`.
+- `username` neu ton tai chi la alias noi bo bang so dien thoai de tranh unique index cu; UI/API customer khong dung.
 
 Admin:
 
 - Login: `POST /api/officer/login` voi `{ username, password }`.
-- Tai khoan mac dinh seed trong `backend/config/bootstrap.js`: `admin/admin123`.
+- Tai khoan seed: `admin/admin123`.
 
-Luu y: Ben ngoai FE/API chi dung `password` cho dang nhap, dang ky va xac nhan giao dich. Engine van giu ten method noi bo legacy `PIN` cho P2P/interbank, nhung `pinHash` duoc set cung hash voi password de customer dung mot mat khau xac nhan.
-
-## 4. Domain va model quan trong
+## 4. Model quan trong
 
 | Model | Vai tro |
-|---|---|
-| `Customer` | Khach hang, thong tin dang nhap va vi chinh. |
+| --- | --- |
+| `Customer` | Khach hang, phone/PIN va vi chinh. |
 | `Officer` | Quan tri vien/admin. |
-| `Pocket` | Vi/so du; co checksum va `ownerType`. |
+| `Pocket` | Vi/so du, co checksum va `ownerType`. |
 | `PocketEntry` | But toan debit/credit theo `transRefId`. |
+| `TransactionTrail` | Nhat ky request/confirm/verify/callback. |
 | `Transaction` | Bien lai giao dich da ghi so. |
-| `TransactionTrail` | Nhat ky xu ly request/confirm/verify/callback. |
-| `Service` | Cau hinh nghiep vu nhu P2P, LINK_BANK, LINK_CARD, CARD_TOPUP, INTERBANK_OUT. |
-| `TransField` | Rule input field. |
-| `TransValidation` | Rule business validation. |
-| `TransDefinition` | GL steps ghi so. |
-| `Connector` | Cau hinh doi tac ngoai: VCB/VISA/NAPAS. |
-| `Instrument` | Nguon tien da lien ket, chi luu token/masked. |
+| `Service` | Cau hinh nghiep vu: P2P, CASH_IN, BILL_PAYMENT va extension. |
+| `TransField` | Cau hinh field dau vao. |
+| `TransValidation` | Cau hinh rule nghiep vu. |
+| `TransDefinition` | Cau hinh glSteps ghi so. |
+| `Biller` | Nha cung cap hoa don, inquiry/payment URL va vi biller. |
+| `Connector` | Doi tac extension: VCB/VISA/NAPAS. |
+| `Instrument` | Nguon tien lien ket, chi luu token/masked. |
 
-`Pocket.ownerType` hien co `customer`, `system`, `suspense`, `nostro`. Suspense giu tien dang bay o giao dich async; nostro la so du guong voi doi tac.
+`Pocket.ownerType` hien co `customer`, `system`, `bank`, `biller`, `suspense`, `nostro`.
 
 ## 5. Backend da co
 
-Nghiep vu customer:
+Nghiep vu loi theo `MINIWALLET.md`:
 
-- `P2P`: chuyen tien noi bo theo so dien thoai, phi co dinh.
-- `LINK_BANK`: lien ket ngan hang qua VCB, OTP dev `123456`, tao `Instrument`.
-- `LINK_CARD`: lien ket the qua VISA tokenize, 3DS dev `123456`, tao `Instrument` loai card.
-- `CARD_TOPUP`: nap tien tu the da lien ket qua VISA charge, nguon tien `CARD_ACQUIRER`.
-- `INTERBANK_OUT`: chuyen tien lien ngan hang async qua NAPAS, tien vao suspense roi callback chot/hoan.
+- `P2P`: Customer chuyen tien noi bo theo so dien thoai, co phi ve `SYSTEM_FEE`.
+- `CASH_IN`: Officer nap tien tu `BANK_MAIN` sang vi Customer, `auth = NONE`.
+- `BILL_PAYMENT`: Customer chon Biller + ma hoa don; engine goi Inquiry de lay so tien, goi Payment o Verify, tien vao vi Biller va phi ve System.
 
-Connector mock:
+Extension da co:
+
+- `LINK_BANK`: lien ket ngan hang qua VCB, OTP dev `123456`.
+- `LINK_CARD`: lien ket the qua VISA tokenize, 3DS dev `123456`.
+- `CARD_TOPUP`: nap tien tu the da lien ket qua VISA charge.
+- `INTERBANK_OUT`: chuyen lien ngan hang async qua NAPAS, tien vao suspense roi callback chot/hoan.
+
+Mock:
 
 - VCB: `sendOtp`, `verifyOtp`.
 - VISA: `tokenize`, `charge`.
 - NAPAS: `validateAccount`, `payout`, `status`.
+- Biller: `/mock/biller/inquiry`, `/mock/biller/payment`; demo bills `EVN001`, `EVN002`, `WTR001`, `NET001`.
 
-Admin/operation:
+Admin API moi:
 
-- Callback async: `POST /api/txn/callback/:connector`.
-- Janitor recover: helper `recover`, endpoint `POST /api/admin/recover`, chay luc lift va dinh ky.
-- Reconciliation: `GET /api/admin/reconcile`.
-- Trail viewer: `GET /api/admin/trails`.
-- Connector list/test/upsert/toggle/delete:
-  - `GET /api/admin/connectors`
-  - `POST /api/admin/connector/test`
-  - `POST /api/admin/connectors/upsert`
-  - `POST /api/admin/connectors/toggle`
-  - `POST /api/admin/connectors/delete`
+- `GET /api/admin/services`, `POST /api/admin/services/upsert`, `POST /api/admin/services/toggle`.
+- `GET /api/admin/wallets`, `POST /api/admin/wallets/create`.
+- `GET /api/admin/billers`, `POST /api/admin/billers/upsert`.
+- `GET /api/admin/customers`.
+- `POST /api/admin/cash-in`.
+- `GET /api/admin/history`.
+- Van giu: trails, integrity, recover, reconcile, connector CRUD/test.
 
-## 6. Engine workflow
+Customer API moi:
 
-1. `POST /api/txn/request`: build fields, validate, tinh phi, tao `TransactionTrail` pending.
-2. `POST /api/txn/confirm`: chay hook confirm neu co, vi du gui OTP.
-3. `POST /api/txn/verify`: claim pending -> processing, xac thuc credential, chay hook pre-verify, ghi so sync hoac giu suspense cho async.
-4. `POST /api/txn/callback/:connector`: doi tac bao `SUCCESS`/`FAILED` de chot `done` hoac `reversed`.
+- `GET /api/customer/billers`.
+- `GET /api/services`.
 
-Bat bien can giu:
-
-- Tien chi chay o Verify/Callback.
-- GL steps phai can bang debit/credit.
-- Async payout phai giu tien o suspense truoc khi doi tac tra ket qua.
-- Reversal la but toan nguoc, khong sua so du thu cong.
-- Callback phai idempotent, goi lai khong ghi so lan 2.
-- Khong luu PAN/so the that; chi luu token va masked number.
-- Secret connector doc tu env khi len production.
-
-## 7. Frontend hien tai
+## 6. Frontend hien tai
 
 Routes:
 
 - `/`: Home.
-- `/login`: customer login.
-- `/register`: customer register.
-- `/forgot-password`: quen mat khau.
-- `/reset-password`: dat lai mat khau.
+- `/login`: customer login bang so dien thoai + PIN.
+- `/register`: customer register bang ho ten, so dien thoai, PIN.
+- `/forgot-pin`: quen PIN.
+- `/reset-pin`: dat lai PIN.
 - `/app`: customer dashboard.
-- `/app/new`: tao giao dich/link source/topup.
+- `/app/new`: wizard giao dich.
 - `/admin/login`: admin login.
 - `/admin`: admin dashboard.
 
 Customer FE:
 
-- Dang ky/dang nhap bang username hoac so dien thoai + mat khau.
-- Dashboard vi: so du, nguon tien lien ket, lich su gan day.
-- Tao giao dich: chuyen tien noi bo, chuyen lien ngan hang, lien ket ngan hang, lien ket the, nap tien tu the.
-- UI customer da tranh thuat ngu ky thuat nhu `instrument`, `operation`, `mock`, `trail`.
+- Dashboard uu tien 3 viec loi: chuyen tien, thanh toan hoa don, lich su.
+- Tien ich mo rong tach rieng: chuyen lien ngan hang, lien ket ngan hang/the, nap tien tu the.
+- Bill Payment khong cho khach tu nhap so tien; so tien den tu Inquiry.
+- Verify giao dich bang PIN, OTP hoac 3DS tuy service.
 
 Admin FE:
 
-- Dashboard chia tab/khu vuc: tong quan, giao dich, doi soat, ket noi doi tac, cong cu ky thuat.
-- Co integrity/checksum, recover, reconcile, trail viewer, callback dieu khien, connector CRUD va connector test.
+- Dashboard tabs: Tong quan, Service, Thiet ke, Vi, Biller, Customer, Cash-in, Trail, History, Doi soat, Ket noi, Cong cu.
+- Transaction Design hien 5 khoi config: fieldBuilder, TransField, TransValidation, Fee, TransDefinition/glSteps.
+- Cash-in cho phep Officer nap tien cho customer bang so dien thoai.
+- Cong cu mock/test nam trong khu vuc admin, khong lo ra customer.
 
-## 8. Trang thai roadmap
+## 7. QA hien tai
 
-Da hoan thanh trong cac stage gan day:
-
-- Auth customer moi: username/phone + password.
-- Forgot/reset password ca backend va frontend.
-- B4 LINK_CARD va B5 CARD_TOPUP.
-- D1 reconcile endpoint/UI.
-- D2 connector CRUD va trail viewer mo rong.
-- Frontend redesign: AppShell, AuthLayout, UI components, customer/admin dashboard sach hon.
-- Hardening nho: health response dung `res.ok`, history che token/card, bootstrap cap nhat connector operations moi.
-- Engine QA script: `cd backend && npm run qa:engine`.
-
-Con nen lam tiep:
-
-1. Manual e2e script: register -> login -> link bank/card -> topup -> P2P -> interbank -> callback -> reconcile.
-2. Production readiness neu can demo nghiem tuc: env secrets, email/SMS reset password, logging/audit, rate limit auth.
-3. Tuy chon scope cu: Cash-in va Bill Payment neu giao vien/yeu cau van tinh trong project.
-
-QA script hien co:
-
-- Chay tren database mac dinh `mongodb://127.0.0.1:27017/miniwallet_qa`.
-- Tu lift Sails o port trong, cap nhat connector mock sang port do.
-- Test P2P verify replay, CARD_TOPUP replay, INTERBANK_OUT callback SUCCESS/FAILED replay.
-- Test recover timeout khi trang thai doi tac UNKNOWN.
-- Assert tong so du toan he thong khong doi, checksum khop va khong co vi am.
-
-## 9. Quy uoc lam viec voi user
-
-- Khong tu commit. Chi goi y commit message khi het mot stage.
-- Khong revert thay doi cua user.
-- Neu thay doi FE lon, chay `npm run build` trong `frontend`.
-- Neu thay doi BE controller/helper quan trong, chay syntax check hoac smoke test phu hop.
-
-Commit message goi y cho stage hien tai:
+Chay:
 
 ```bash
-git commit -m "chore(project): harden flows and refresh docs"
+cd backend
+npm run qa:engine
 ```
+
+QA dang test:
+
+- Customer register/login bang phone/PIN.
+- CASH_IN server-side khong can customer PIN.
+- P2P replay idempotent.
+- BILL_PAYMENT inquiry/payment va replay idempotent.
+- CARD_TOPUP replay.
+- INTERBANK_OUT callback SUCCESS/FAILED replay.
+- Recover timeout khi doi tac unknown.
+- Tong so du khong doi, checksum khop, khong co vi am.
+
+Frontend build:
+
+```bash
+cd frontend
+npm run build
+```
+
+## 8. Quy uoc lam viec
+
+- Khong tu commit; chi goi y commit message khi xong stage.
+- Khong revert thay doi cua user.
+- Sau thay doi FE lon, chay `npm run build`.
+- Sau thay doi BE engine/config/controller quan trong, chay `npm run qa:engine`.

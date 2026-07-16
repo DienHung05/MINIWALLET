@@ -6,13 +6,14 @@ Mini Wallet là ví điện tử demo cho luồng khách hàng và quản trị 
 
 **Customer**
 
-- Đăng ký bằng họ tên, username, số điện thoại và mật khẩu.
-- Đăng nhập bằng username hoặc số điện thoại.
+- Đăng ký bằng họ tên, số điện thoại và mã PIN.
+- Đăng nhập bằng số điện thoại và PIN.
 - Xem số dư, nguồn tiền đã liên kết và lịch sử giao dịch.
 - Chuyển tiền nội bộ giữa customer.
 - Chuyển tiền liên ngân hàng qua mock NAPAS.
+- Thanh toán hoá đơn với số tiền tra cứu từ Biller.
 - Liên kết ngân hàng, liên kết thẻ và nạp tiền từ thẻ đã liên kết.
-- Quên mật khẩu và đặt lại mật khẩu.
+- Quên PIN và đặt lại PIN.
 
 **Admin**
 
@@ -20,6 +21,7 @@ Mini Wallet là ví điện tử demo cho luồng khách hàng và quản trị 
 - Theo dõi giao dịch, trạng thái xử lý và nhật ký từng bước.
 - Vận hành callback/recover cho giao dịch bất đồng bộ.
 - Đối soát NAPAS/nostro.
+- Quản lý Service, Transaction Design, Ví, Biller, Customer và Cash-in.
 - Xem, test, bật/tắt, cập nhật hoặc xoá connector mock.
 
 **Engine backend**
@@ -28,7 +30,7 @@ Mini Wallet là ví điện tử demo cho luồng khách hàng và quản trị 
 - Ghi sổ kép bằng `PocketEntry`, bảo toàn tổng số dư.
 - Checksum ví để phát hiện sai lệch dữ liệu.
 - Idempotency cho verify/callback để tránh xử lý trùng.
-- Mock connector VCB, VISA, NAPAS để demo end-to-end.
+- Mock connector VCB, VISA, NAPAS và mock Biller để demo end-to-end.
 
 ## Công nghệ
 
@@ -104,6 +106,8 @@ Thông tin mock để demo:
 | ------------------------- | ------------------------------------------------------------------------------- |
 | Liên kết ngân hàng    | Chọn VCB, nhập số tài khoản bất kỳ, OTP`123456`                        |
 | Liên kết thẻ           | Số thẻ`4111111111111111`, hết hạn `12/30`, CVV bất kỳ, 3DS `123456` |
+| Thanh toán hoá đơn    | Chọn EVN/WATER/NET, nhập mã `EVN001`, `EVN002`, `WTR001` hoặc `NET001` |
+| Cash-in admin         | Admin chọn số điện thoại customer và số tiền cần nạp |
 | Nạp tiền từ thẻ       | Chọn thẻ đã liên kết, nhập số tiền, 3DS`123456`                      |
 | Chuyển liên ngân hàng | Giao dịch đi qua mock NAPAS, admin có thể callback/recover/đối soát      |
 
@@ -114,8 +118,8 @@ Thông tin mock để demo:
 | `/`                | Trang chủ, tự điều hướng theo phiên đăng nhập hiện tại |
 | `/login`           | Đăng nhập customer                                              |
 | `/register`        | Đăng ký customer                                                |
-| `/forgot-password` | Quên mật khẩu                                                   |
-| `/reset-password`  | Đặt lại mật khẩu                                              |
+| `/forgot-pin`      | Quên PIN                                                        |
+| `/reset-pin`       | Đặt lại PIN                                                     |
 | `/app`             | Dashboard customer                                                 |
 | `/app/new`         | Tạo giao dịch, liên kết nguồn tiền, nạp tiền               |
 | `/admin/login`     | Đăng nhập admin                                                 |
@@ -136,19 +140,20 @@ Response API dùng envelope chung:
 | Method   | Endpoint                          | Mục đích                                         |
 | -------- | --------------------------------- | --------------------------------------------------- |
 | `POST` | `/api/customer/register`        | Đăng ký customer                                 |
-| `POST` | `/api/customer/login`           | Đăng nhập bằng username hoặc số điện thoại |
+| `POST` | `/api/customer/login`           | Đăng nhập bằng số điện thoại + PIN |
 | `GET`  | `/api/customer/balance`         | Xem số dư                                         |
 | `GET`  | `/api/customer/history`         | Xem lịch sử giao dịch                            |
 | `GET`  | `/api/customer/instruments`     | Xem ngân hàng/thẻ đã liên kết                |
-| `POST` | `/api/customer/forgot-password` | Tạo yêu cầu quên mật khẩu                     |
-| `POST` | `/api/customer/reset-password`  | Đặt lại mật khẩu                               |
+| `GET`  | `/api/customer/billers`         | Lấy nhà cung cấp hoá đơn đang bật |
+| `POST` | `/api/customer/forgot-pin`      | Tạo yêu cầu quên PIN |
+| `POST` | `/api/customer/reset-pin`       | Đặt lại PIN |
 
 **Transaction**
 
 | Method   | Endpoint                         | Mục đích                          |
 | -------- | -------------------------------- | ------------------------------------ |
 | `GET`  | `/api/services`                | Lấy danh sách dịch vụ giao dịch |
-| `POST` | `/api/txn/init`                | Khởi tạo giao dịch                |
+| `POST` | `/api/txn/request`             | Khởi tạo giao dịch                |
 | `POST` | `/api/txn/confirm`             | Xác nhận bước nhập liệu        |
 | `POST` | `/api/txn/verify`              | Xác thực và ghi sổ               |
 | `POST` | `/api/txn/callback/:connector` | Callback từ connector mock          |
@@ -158,6 +163,12 @@ Response API dùng envelope chung:
 | Method   | Endpoint                         | Mục đích                       |
 | -------- | -------------------------------- | --------------------------------- |
 | `POST` | `/api/officer/login`           | Đăng nhập admin                |
+| `GET`  | `/api/admin/services`          | Quản lý Service / Transaction Design |
+| `GET`  | `/api/admin/wallets`           | Quản lý ví |
+| `GET`  | `/api/admin/billers`           | Quản lý Biller |
+| `GET`  | `/api/admin/customers`         | Quản lý Customer |
+| `POST` | `/api/admin/cash-in`           | Nạp tiền cho khách |
+| `GET`  | `/api/admin/history`           | Biên lai giao dịch thành công |
 | `GET`  | `/api/admin/trails`            | Xem nhật ký xử lý giao dịch  |
 | `GET`  | `/api/admin/reconcile`         | Đối soát NAPAS/nostro          |
 | `POST` | `/api/admin/recover`           | Recover giao dịch treo/quá hạn |
@@ -170,13 +181,12 @@ Response API dùng envelope chung:
 ## Luồng demo nhanh
 
 1. Mở `http://localhost:5173`.
-2. Đăng ký customer mới bằng username, số điện thoại và mật khẩu.
+2. Đăng ký customer mới bằng số điện thoại và PIN.
 3. Vào ví customer tại `/app`.
 4. Vào thao tác tại `/app/new`.
-5. Liên kết ngân hàng hoặc thẻ bằng dữ liệu mock ở trên.
-6. Nạp tiền từ thẻ hoặc chuyển tiền cho customer khác.
-7. Đăng nhập admin tại `/admin/login`.
-8. Theo dõi giao dịch, callback/recover giao dịch NAPAS và chạy đối soát.
+5. Đăng nhập admin tại `/admin/login`, vào tab Cash-in để nạp tiền cho customer.
+6. Customer chuyển tiền nội bộ hoặc thanh toán hoá đơn.
+7. Admin theo dõi Trail/History, callback/recover giao dịch NAPAS và chạy đối soát.
 
 ## Kiểm thử và kiểm tra build
 
@@ -187,7 +197,7 @@ cd backend
 npm run qa:engine
 ```
 
-Script này dùng database QA riêng, kiểm tra các case quan trọng như register/login API, P2P replay, card topup replay, callback NAPAS success/failed, timeout recovery, checksum và bảo toàn tổng số dư.
+Script này dùng database QA riêng, kiểm tra register/login phone/PIN, Cash-in, Bill Payment, P2P replay, card topup replay, callback NAPAS success/failed, timeout recovery, checksum và bảo toàn tổng số dư.
 
 Frontend build:
 

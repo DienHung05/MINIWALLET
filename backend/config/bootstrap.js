@@ -158,6 +158,7 @@ module.exports.bootstrap = async function () {
 
   // ── 7) Ví suspense (giữ tiền in-flight) + nostro (gương tiền đối tác) + funding thẻ ──
   for (const w of [
+    { ownerType: 'bank', ownerRef: 'BANK_MAIN', balance: 1000000000 },
     { ownerType: 'suspense', ownerRef: 'SUSPENSE_PAYOUT' },
     { ownerType: 'nostro', ownerRef: 'NOSTRO_NAPAS' },
     { ownerType: 'system', ownerRef: 'CARD_ACQUIRER', balance: 1000000000 },
@@ -168,6 +169,136 @@ module.exports.bootstrap = async function () {
       await Pocket.create({ ownerType: w.ownerType, ownerRef: w.ownerRef, balance, checksum });
       sails.log.info('Seed: Pocket ' + w.ownerRef);
     }
+  }
+
+  // Core MINIWALLET: biller demo + ví biller dùng cho Bill Payment
+  const billerSeeds = [
+    { code: 'EVN', name: 'Điện lực EVN', category: 'electricity' },
+    { code: 'WATER', name: 'Cấp nước đô thị', category: 'water' },
+    { code: 'NET', name: 'Internet HomeNet', category: 'internet' },
+  ];
+  for (const b of billerSeeds) {
+    const inquiryUrl = BASE + '/biller/inquiry';
+    const paymentUrl = BASE + '/biller/payment';
+    let biller = await Biller.findOne({ code: b.code });
+    if (!biller) {
+      biller = await Biller.create({
+        code: b.code,
+        name: b.name,
+        category: b.category,
+        inquiryUrl,
+        paymentUrl,
+        status: 'active',
+      }).fetch();
+      const checksum = await sails.helpers.computeChecksum(0, 'biller', biller.id, 'VND');
+      const pocket = await Pocket.create({ ownerType: 'biller', ownerRef: biller.id, balance: 0, checksum }).fetch();
+      biller = await Biller.updateOne(biller.id).set({ pocket: pocket.id });
+      sails.log.info('Seed: Biller ' + b.code);
+    } else {
+      const patch = { name: b.name, category: b.category, inquiryUrl: biller.inquiryUrl || inquiryUrl, paymentUrl: biller.paymentUrl || paymentUrl, status: biller.status || 'active' };
+      if (!biller.pocket) {
+        const checksum = await sails.helpers.computeChecksum(0, 'biller', biller.id, 'VND');
+        const pocket = await Pocket.create({ ownerType: 'biller', ownerRef: biller.id, balance: 0, checksum }).fetch();
+        patch.pocket = pocket.id;
+      }
+      await Biller.updateOne(biller.id).set(patch);
+    }
+  }
+
+  // Core MINIWALLET: Cash-in do Officer trigger, bỏ Confirm/PIN
+  if (!(await Service.findOne({ code: 'CASH_IN' }))) {
+    const s = await Service.create({
+      code: 'CASH_IN', name: 'Nạp tiền cho khách', serviceType: 'cash_in', currency: 'VND',
+      fieldBuilder: [
+        { name: 'CURRENCY', source: 'fixed', value: 'VND' },
+        { name: 'CUSTOMERPHONE', source: 'mapping', from: 'customerPhone' },
+        { name: 'AMOUNT', source: 'mapping', from: 'amount' },
+        { name: 'BANKID', source: 'query', fn: 'querySystemPocketByRef', arg: 'BANKREF' },
+        { name: 'RECEIVERID', source: 'query', fn: 'queryPocketByPhone', arg: 'CUSTOMERPHONE' },
+      ],
+      feeConfig: { type: 'fixed', value: 0 },
+      auth: { method: 'NONE' },
+      enabled: true,
+    }).fetch();
+    const sid = String(s.id);
+    await Service.updateOne(sid).set({
+      fieldBuilder: [
+        { name: 'CURRENCY', source: 'fixed', value: 'VND' },
+        { name: 'BANKREF', source: 'fixed', value: 'BANK_MAIN' },
+        { name: 'CUSTOMERPHONE', source: 'mapping', from: 'customerPhone' },
+        { name: 'AMOUNT', source: 'mapping', from: 'amount' },
+        { name: 'BANKID', source: 'query', fn: 'querySystemPocketByRef', arg: 'BANKREF' },
+        { name: 'RECEIVERID', source: 'query', fn: 'queryPocketByPhone', arg: 'CUSTOMERPHONE' },
+      ],
+    });
+    await TransField.createEach([
+      { service: sid, fieldName: 'CUSTOMERPHONE', fieldFormat: 'string', regex: '^0\\d{9}$', isRequired: true, order: 1, errorCode: 400 },
+      { service: sid, fieldName: 'AMOUNT', fieldFormat: 'number', isRequired: true, order: 2, errorCode: 400 },
+    ]);
+    await TransDefinition.create({
+      service: sid,
+      glSteps: [
+        { order: 0, amount: 'AMOUNT', debit: { level: 'productLevel', target: 'BANKID' }, credit: { level: 'productLevel', target: 'RECEIVERID' } },
+      ],
+    });
+    sails.log.info('Seed: Service CASH_IN');
+  }
+
+  // Core MINIWALLET: Bill Payment inquiry @Request, payment @Verify
+  if (!(await Service.findOne({ code: 'BILL_PAYMENT' }))) {
+    const s = await Service.create({
+      code: 'BILL_PAYMENT', name: 'Thanh toán hoá đơn', serviceType: 'bill_payment', currency: 'VND',
+      fieldBuilder: [
+        { name: 'CURRENCY', source: 'fixed', value: 'VND' },
+        { name: 'BILLERCODE', source: 'mapping', from: 'billerCode' },
+        { name: 'BILLCODE', source: 'mapping', from: 'billCode' },
+        { name: 'SENDERID', source: 'query', fn: 'queryPocketByUserId', arg: 'USERID' },
+        {
+          name: 'BILLER',
+          source: 'query',
+          fn: 'queryBillerByCode',
+          arg: 'BILLERCODE',
+          assign: {
+            BILLERID: 'id',
+            BILLERNAME: 'name',
+            BILLERPOCKET: 'pocket',
+            INQUIRYURL: 'inquiryUrl',
+            PAYMENTURL: 'paymentUrl',
+          },
+        },
+      ],
+      feeConfig: { type: 'fixed', value: 1000 },
+      auth: { method: 'PIN' },
+      hooks: [
+        {
+          phase: 'onRequest', urlFrom: 'INQUIRYURL', label: 'Tra cứu hoá đơn',
+          inputMap: { billerCode: 'BILLERCODE', billCode: 'BILLCODE' },
+          outputMap: { AMOUNT: 'amount', BILLDESC: 'description', BILLERREF: 'billerRef' },
+          onFailure: 'abort',
+        },
+        {
+          phase: 'onPreVerify', urlFrom: 'PAYMENTURL', label: 'Thanh toán hoá đơn',
+          inputMap: { billerCode: 'BILLERCODE', billCode: 'BILLCODE', amount: 'AMOUNT', refId: 'TRANSREFID' },
+          outputMap: { BILLERREFID: 'billerRefId' },
+          onFailure: 'abort',
+        },
+      ],
+      enabled: true,
+    }).fetch();
+    const sid = String(s.id);
+    await TransField.createEach([
+      { service: sid, fieldName: 'BILLERCODE', fieldFormat: 'string', isRequired: true, order: 1, errorCode: 400 },
+      { service: sid, fieldName: 'BILLCODE', fieldFormat: 'string', isRequired: true, order: 2, errorCode: 400 },
+    ]);
+    await TransValidation.create({ service: sid, validateFunc: 'validateSenderAccountSufficiency', validateFields: 'SENDERID:AMOUNT:DEBITFEE', order: 1, errorCode: 4001 });
+    await TransDefinition.create({
+      service: sid,
+      glSteps: [
+        { order: 0, amount: 'AMOUNT', debit: { level: 'productLevel', target: 'SENDERID' }, credit: { level: 'productLevel', target: 'BILLERPOCKET' } },
+        { order: 1, amount: 'DEBITFEE', debit: { level: 'productLevel', target: 'SENDERID' }, credit: { level: 'systemAccount', target: 'SYSTEM_FEE' } },
+      ],
+    });
+    sails.log.info('Seed: Service BILL_PAYMENT');
   }
 
   // Config LINK_CARD

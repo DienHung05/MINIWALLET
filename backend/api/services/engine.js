@@ -32,6 +32,17 @@ const QUERY_FNS = {
     if (!c || !c.pocket) throw fail(404, 'Không tìm thấy ví người nhận (sai SĐT?)');
     return c.pocket;
   },
+  queryBillerByCode: async (code) => {
+    const biller = await Biller.findOne({ code: `${code || ''}`.trim().toUpperCase() });
+    if (!biller || biller.status === 'disabled') throw fail(404, 'Không tìm thấy nhà cung cấp hoá đơn');
+    if (!biller.pocket) throw fail(500, 'Biller chưa có ví nhận tiền');
+    return biller;
+  },
+  querySystemPocketByRef: async (ownerRef) => {
+    const p = await Pocket.findOne({ ownerRef: `${ownerRef || ''}`, ownerType: ['system', 'bank', 'biller', 'nostro', 'suspense'] });
+    if (!p) throw fail(500, 'Chưa cấu hình ví hệ thống: ' + ownerRef);
+    return p.id;
+  },
 };
 
 async function buildFields(service, ctx) {
@@ -57,14 +68,12 @@ async function buildFields(service, ctx) {
     }
     else if (f.source === 'query') {
       const fn = QUERY_FNS[f.fn]; if (!fn) throw fail(500, 'Query fn chưa hỗ trợ: ' + f.fn);
-      body[f.name] = await fn(body[f.arg] !== undefined ? body[f.arg] : params[f.arg]);
-    } else if (f.source === 'instrument') {
-      const instId = body[f.arg] !== undefined ? body[f.arg] : params[f.arg];
-      const inst = await Instrument.findOne({ id: instId, customer: ctx.userId, status: 'active' });
-      if (!inst) throw fail(404, 'Không tìm thấy instrument hoặc không thuộc về bạn');
-      if (f.type && inst.type !== f.type) throw fail(400, 'Instrument không đúng loại yêu cầu');
-      if (f.connector && inst.connector !== f.connector) throw fail(400, 'Instrument không đúng connector yêu cầu');
-      body[f.name] = f.field ? inst[f.field] : inst.id;
+      const value = await fn(body[f.arg] !== undefined ? body[f.arg] : params[f.arg]);
+      if (f.assign) {
+        for (const key of Object.keys(f.assign)) body[key] = pick(value, f.assign[key]);
+      } else {
+        body[f.name] = value;
+      }
     } else throw fail(500, 'Nguồn fieldBuilder chưa hỗ trợ: ' + f.source);
   }
   return body;
@@ -132,14 +141,40 @@ async function runHooks(service, phase, body) {
     const args = {};
     for (const k of Object.keys(h.inputMap || {})) args[k] = pick(body, h.inputMap[k]);
     let out;
-    try { out = await sails.helpers.callConnector(h.connector, h.operation, args, body.TRANSREFID); }
-    catch (e) { throw fail(502, `Lỗi gọi ${h.connector}.${h.operation}: ${e.message}`); }  // network/timeout (S10 xử lý in-doubt)
+    if (h.urlFrom) {
+      try { out = await callExternalUrl(pick(body, h.urlFrom), args, body.TRANSREFID); }
+      catch (e) { throw fail(502, `Lỗi gọi ${h.label || h.urlFrom}: ${e.message}`); }
+    } else {
+      try { out = await sails.helpers.callConnector(h.connector, h.operation, args, body.TRANSREFID); }
+      catch (e) { throw fail(502, `Lỗi gọi ${h.connector}.${h.operation}: ${e.message}`); }  // network/timeout (S10 xử lý in-doubt)
+    }
     if (!out.ok) {
       if ((h.onFailure || 'abort') === 'ignore') continue;
-      throw fail(400, `${h.connector}.${h.operation}: ${(out.raw && out.raw.message) || 'đối tác từ chối'}`);
+      throw fail(400, `${h.label || h.connector + '.' + h.operation}: ${(out.raw && out.raw.message) || 'đối tác từ chối'}`);
     }
     for (const k of Object.keys(h.outputMap || {})) body[k] = out.data[h.outputMap[k]];
   }
+}
+
+async function callExternalUrl(url, args, idempotencyKey) {
+  if (!url) throw new Error('URL chưa được cấu hình');
+  const headers = { 'Content-Type': 'application/json' };
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  let res, json;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(args || {}),
+    });
+    json = await res.json();
+  } catch (e) {
+    const err = new Error('Lỗi gọi URL: ' + e.message);
+    err.errorType = 'network';
+    throw err;
+  }
+  const okBusiness = (json.err === undefined || json.err === 200);
+  return { ok: res.ok && okBusiness, okBusiness, status: res.status, data: json.data || {}, raw: json };
 }
 
 // ── EFFECT: side-effect phi tiền tệ (tạo Instrument) ──
@@ -203,9 +238,9 @@ async function runLedger(steps, body, trailId, opts) {
 
   const txnDoc = opts.makeTxn ? {
     _id: new ObjectId(), code: 'TXN' + Date.now(), transRefId: trailId, service: String(opts.serviceId),
-    sender: body.SENDERID || '', receiver: body.RECEIVERID || body.DESTACCOUNT || '', amount: Number(body.AMOUNT || 0),
+    sender: body.SENDERID || body.BANKID || '', receiver: body.RECEIVERID || body.BILLERPOCKET || body.DESTACCOUNT || '', amount: Number(body.AMOUNT || 0),
     fee: Number(body.DEBITFEE || 0), totalAmount: Number(body.TOTALAMOUNT || 0),
-    status: opts.txnStatus || 'done', billerRefId: '', partnerRef: body.PARTNERREF || '', createdAt: Date.now(), updatedAt: Date.now(),
+    status: opts.txnStatus || 'done', billerRefId: body.BILLERREFID || '', partnerRef: body.PARTNERREF || body.BILLERREFID || '', createdAt: Date.now(), updatedAt: Date.now(),
   } : null;
 
   let effects = [];
@@ -313,8 +348,8 @@ async function processVerify(transRefId, credential, ctx) {
     const method = (service.auth && service.auth.method) || 'NONE';
     if (method === 'PIN') {
       const bcrypt = require('bcryptjs');
-      if (!credential) throw fail(401, 'Thiếu mật khẩu xác nhận');
-      if (!(await bcrypt.compare(`${credential}`, ctx.user.pinHash))) throw fail(401, 'Mật khẩu xác nhận không đúng');
+      if (!credential) throw fail(401, 'Thiếu PIN xác nhận');
+      if (!(await bcrypt.compare(`${credential}`, ctx.user.pinHash))) throw fail(401, 'PIN xác nhận không đúng');
     }
     if ((method === 'OTP' || method === '3DS') && !credential) throw fail(401, `Thiếu ${method}`);
     await validateBusiness(service, body);
