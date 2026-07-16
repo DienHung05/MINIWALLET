@@ -5,26 +5,49 @@ import { useAuth } from "../../auth/AuthContext.jsx";
 import { Alert, DataTable, EmptyState, SectionHeader, StatusBadge } from "../../components/ui.jsx";
 import { formatMoney, serviceLabel, sourceTypeLabel, statusLabel } from "../../utils/format.js";
 
+const HISTORY_PAGE_SIZE = 5;
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [bal, setBal] = useState(null);
   const [instruments, setInstruments] = useState([]);
   const [history, setHistory] = useState([]);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPagination, setHistoryPagination] = useState({ page: 1, pageSize: HISTORY_PAGE_SIZE, total: 0, totalPages: 0 });
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [transferService, setTransferService] = useState('P2P');
   const [sourceService, setSourceService] = useState('LINK_BANK');
   const [err, setErr] = useState('');
 
+  async function loadHistory(page = 1) {
+    setHistoryLoading(true);
+    try {
+      const historyRes = await api.get(`/customer/history?page=${page}&limit=${HISTORY_PAGE_SIZE}`);
+      setHistory(historyRes.history || []);
+      setHistoryPagination(historyRes.pagination || {
+        page,
+        pageSize: HISTORY_PAGE_SIZE,
+        total: historyRes.history?.length || 0,
+        totalPages: 1,
+      });
+      setHistoryPage(page);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
   async function load() {
     setErr('');
     try {
-      const [balanceRes, instrumentRes, historyRes] = await Promise.all([
+      const [balanceRes, instrumentRes] = await Promise.all([
         api.get('/customer/balance'),
         api.get('/customer/instruments'),
-        api.get('/customer/history?limit=10'),
       ]);
       setBal(balanceRes);
       setInstruments(instrumentRes.instruments || []);
-      setHistory(historyRes.history || []);
+      await loadHistory(1);
     } catch (e) {
       setErr(e.message);
     }
@@ -128,6 +151,27 @@ export default function Dashboard() {
               { key: 'transRefId', label: 'Mã giao dịch', render: (x) => <code>{x.transRefId}</code> },
             ]}
           />
+        )}
+        {historyPagination.totalPages > 1 && (
+          <div className="pagination" aria-label="Phân trang lịch sử giao dịch">
+            <button
+              className="btn btn-secondary btn-compact"
+              disabled={historyLoading || historyPage <= 1}
+              onClick={() => loadHistory(historyPage - 1)}
+            >
+              Trang trước
+            </button>
+            <span className="pagination-status">
+              Trang {historyPage} / {historyPagination.totalPages} · {historyPagination.total} giao dịch
+            </span>
+            <button
+              className="btn btn-secondary btn-compact"
+              disabled={historyLoading || historyPage >= historyPagination.totalPages}
+              onClick={() => loadHistory(historyPage + 1)}
+            >
+              Trang sau
+            </button>
+          </div>
         )}
       </section>
     </div>

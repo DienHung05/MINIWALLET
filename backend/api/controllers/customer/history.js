@@ -7,13 +7,19 @@ function safeBody(body) {
 }
 
 module.exports = async function history(req, res) {
-  const limit = Math.min(Math.max(Number(req.param('limit') || 20), 1), 50);
+  const page = Math.max(Number(req.param('page') || 1), 1);
+  const limit = Math.min(Math.max(Number(req.param('limit') || 5), 1), 50);
+  const query = { 'inputMessage.userId': req.info.user.id };
   const db = sails.getDatastore().manager;
-  const trails = await db.collection('transactiontrail')
-    .find({ 'inputMessage.userId': req.info.user.id })
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .toArray();
+  const collection = db.collection('transactiontrail');
+  const [total, trails] = await Promise.all([
+    collection.countDocuments(query),
+    collection.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .toArray(),
+  ]);
 
   const items = [];
   for (const t of trails) {
@@ -42,5 +48,13 @@ module.exports = async function history(req, res) {
     });
   }
 
-  return res.ok({ history: items });
+  return res.ok({
+    history: items,
+    pagination: {
+      page,
+      pageSize: limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
 };

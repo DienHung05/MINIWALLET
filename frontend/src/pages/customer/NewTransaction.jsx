@@ -324,7 +324,7 @@ export default function NewTransaction() {
                 </p>
               )}
               {serviceCode === 'BILL_PAYMENT' && (
-                <p className="muted">Số tiền được hệ thống tra cứu từ nhà cung cấp, bạn không cần tự nhập.</p>
+                <p className="muted">Số tiền được hệ thống tra cứu từ nhà cung cấp.</p>
               )}
             </div>
             <Field label={authLabel(authMethod)}>
