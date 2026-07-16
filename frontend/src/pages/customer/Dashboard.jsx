@@ -37,7 +37,7 @@ export default function Dashboard() {
       <section className="wallet-summary">
         <div>
           <p className="eyebrow">Ví của tôi</p>
-          <h1>Xin chào {user?.name || user?.username || user?.phone}</h1>
+          <h1>Xin chào {user?.name || user?.phone}</h1>
           <p className="balance-text">{bal ? formatMoney(bal.balance, bal.currency) : '...'}</p>
         </div>
       </section>
@@ -45,18 +45,33 @@ export default function Dashboard() {
       <Alert tone="error">{err}</Alert>
 
       <section className="panel">
-        <SectionHeader eyebrow="Thao tác" title="Bạn muốn làm gì?" />
+        <SectionHeader eyebrow="Thao tác chính" title="Bạn muốn làm gì?" />
+        <div className="action-group-grid customer-actions">
+          <div className="action-group-card">
+            <span>Chuyển tiền</span>
+            <p>Gửi tiền tới số điện thoại của khách hàng khác trong Mini Wallet.</p>
+            <Link className="btn btn-primary btn-compact" to="/app/new?service=P2P">Chuyển tiền</Link>
+          </div>
+          <div className="action-group-card">
+            <span>Thanh toán hoá đơn</span>
+            <p>Chọn nhà cung cấp, nhập mã hoá đơn và xem số tiền hệ thống tra cứu.</p>
+            <Link className="btn btn-secondary btn-compact" to="/app/new?service=BILL_PAYMENT">Thanh toán</Link>
+          </div>
+          <div className="action-group-card">
+            <span>Lịch sử</span>
+            <p>Xem các giao dịch gần đây và mã biên lai sau khi hoàn tất.</p>
+            <a className="btn btn-secondary btn-compact" href="#history">Xem lịch sử</a>
+          </div>
+        </div>
+      </section>
+
+      <section className="panel">
+        <SectionHeader eyebrow="Tiện ích mở rộng" title="Nguồn tiền và chuyển ngoài hệ thống" />
         <div className="action-group-grid">
           <div className="action-group-card">
-            <span>Tạo giao dịch</span>
-            <p>Chuyển tiền trong ví hoặc chuyển ra ngân hàng.</p>
-            <div className="action-select-row">
-              <select aria-label="Chọn loại giao dịch" value={transferService} onChange={(e) => setTransferService(e.target.value)}>
-                <option value="P2P">Chuyển nội bộ</option>
-                <option value="INTERBANK_OUT">Chuyển liên ngân hàng</option>
-              </select>
-              <Link className="btn btn-primary btn-compact" to={`/app/new?service=${transferService}`}>Tiếp tục</Link>
-            </div>
+            <span>Chuyển liên ngân hàng</span>
+            <p>Gửi tiền ra tài khoản ngân hàng ngoài hệ thống qua NAPAS.</p>
+            <Link className="btn btn-secondary btn-compact" to="/app/new?service=INTERBANK_OUT">Tiếp tục</Link>
           </div>
           <div className="action-group-card">
             <span>Liên kết nguồn tiền</span>
@@ -70,16 +85,14 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="action-group-card">
-            <span>Nạp tiền</span>
-            <p>Nạp tiền vào ví từ thẻ đã liên kết.</p>
-            <div className="button-row">
-              <Link className="btn btn-secondary btn-compact" to="/app/new?service=CARD_TOPUP">Nạp tiền từ thẻ</Link>
-            </div>
+            <span>Nạp tiền từ thẻ</span>
+            <p>Tiện ích demo ngoài nghiệp vụ Cash-in do quản trị viên thực hiện.</p>
+            <Link className="btn btn-secondary btn-compact" to="/app/new?service=CARD_TOPUP">Nạp từ thẻ</Link>
           </div>
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="history">
         <SectionHeader
           eyebrow="Nguồn tiền"
           title="Nguồn tiền đã liên kết"

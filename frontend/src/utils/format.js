@@ -10,6 +10,8 @@ export function formatDateTime(value) {
 export function serviceLabel(code) {
   const map = {
     P2P: 'Chuyển tiền nội bộ',
+    CASH_IN: 'Nạp tiền cho khách',
+    BILL_PAYMENT: 'Thanh toán hoá đơn',
     INTERBANK_OUT: 'Chuyển liên ngân hàng',
     LINK_BANK: 'Liên kết ngân hàng',
     LINK_CARD: 'Liên kết thẻ',
@@ -22,6 +24,7 @@ export function statusLabel(status) {
   const map = {
     active: 'Đang dùng',
     disabled: 'Đã tắt',
+    frozen: 'Đã khoá',
     pending: 'Chờ xác nhận',
     processing: 'Đang xử lý',
     done: 'Thành công',

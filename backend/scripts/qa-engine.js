@@ -78,6 +78,10 @@ async function syncConnectorBaseUrls() {
   await Connector.updateOne({ code: 'VCB' }).set({ baseUrl: base + '/vcb' });
   await Connector.updateOne({ code: 'VISA' }).set({ baseUrl: base + '/visa' });
   await Connector.updateOne({ code: 'NAPAS' }).set({ baseUrl: base + '/napas' });
+  await Biller.update({}).set({
+    inquiryUrl: base + '/biller/inquiry',
+    paymentUrl: base + '/biller/payment',
+  });
 }
 
 function serverBaseUrl() {
@@ -95,14 +99,13 @@ async function postJson(pathname, body) {
 }
 
 async function createCustomer(seed, balance) {
-  const password = 'pass123';
-  const passwordHash = await sails.helpers.hashPin(password);
+  const pin = '123456';
+  const pinHash = await sails.helpers.hashPin(pin);
   const customer = await Customer.create({
-    username: 'qa_' + seed,
+    username: seed,
     phone: seed,
     name: 'QA ' + seed,
-    passwordHash,
-    pinHash: passwordHash,
+    pinHash,
   }).fetch();
   const checksum = await sails.helpers.computeChecksum(balance, 'customer', customer.id, 'VND');
   const pocket = await Pocket.create({
@@ -112,33 +115,27 @@ async function createCustomer(seed, balance) {
     checksum,
   }).fetch();
   const updated = await Customer.updateOne(customer.id).set({ pocket: pocket.id });
-  return Object.assign({}, updated, { password });
+  return Object.assign({}, updated, { pin });
 }
 
 async function runAuthApiChecks() {
   const missing = await postJson('/api/customer/register', {});
   assert(missing.err === 400, 'register missing fields should return business error 400');
-  assert(!/pin/i.test(missing.message || ''), 'register missing fields message should not mention pin');
-  assert(/username/i.test(missing.message || ''), 'register missing fields should mention username');
-  assert(/mật khẩu/i.test(missing.message || ''), 'register missing fields should mention password');
+  assert(/pin/i.test(missing.message || ''), 'register missing fields should mention PIN');
+  assert(/số điện thoại/i.test(missing.message || ''), 'register missing fields should mention phone');
 
-  const username = 'qa_api_user';
   const phone = '0910000099';
-  const password = 'pass123';
+  const pin = '123456';
   const registered = await postJson('/api/customer/register', {
     name: 'QA API User',
-    username,
     phone,
-    password,
+    pin,
   });
-  assert(registered.err === 200, 'register should accept username/phone/password: ' + JSON.stringify(registered));
+  assert(registered.err === 200, 'register should accept phone/PIN: ' + JSON.stringify(registered));
 
-  const byUsername = await postJson('/api/customer/login', { identifier: username, password });
-  assert(byUsername.err === 200 && byUsername.token, 'login by username/password should return token');
-
-  const byPhone = await postJson('/api/customer/login', { identifier: phone, password });
-  assert(byPhone.err === 200 && byPhone.token, 'login by phone/password should return token');
-  printOk('Customer register/login API uses username or phone with password');
+  const byPhone = await postJson('/api/customer/login', { phone, pin });
+  assert(byPhone.err === 200 && byPhone.token, 'login by phone/PIN should return token');
+  printOk('Customer register/login API uses phone with PIN');
 }
 
 async function sumBalances() {
@@ -187,15 +184,52 @@ async function runP2PReplay(engine, sender, receiver, baseline) {
     amount: 25000,
   }, { userId: sender.id, user: sender });
 
-  const first = await engine.processVerify(req.transRefId, sender.password, { userId: sender.id, user: sender });
+  const first = await engine.processVerify(req.transRefId, sender.pin, { userId: sender.id, user: sender });
   assert(first.status === 'done', 'P2P should be done');
 
   const beforeReplay = await snapshotRef(req.transRefId);
-  const second = await engine.processVerify(req.transRefId, sender.password, { userId: sender.id, user: sender });
+  const second = await engine.processVerify(req.transRefId, sender.pin, { userId: sender.id, user: sender });
   assert(second.replay === true, 'P2P second verify should be replay');
   await expectReplayStable(req.transRefId, beforeReplay, 'P2P replay');
   await assertTotalUnchanged(baseline, 'P2P replay');
   printOk('P2P verify replay is idempotent');
+}
+
+async function runCashIn(engine, officer, customer, baseline) {
+  const before = await Pocket.findOne(customer.pocket);
+  const req = await engine.processRequest('CASH_IN', {
+    customerPhone: customer.phone,
+    amount: 120000,
+  }, { userId: officer.id, user: officer });
+
+  const done = await engine.processVerify(req.transRefId, '', { userId: officer.id, user: officer });
+  assert(done.status === 'done', 'CASH_IN should be done');
+
+  const after = await Pocket.findOne(customer.pocket);
+  assert(Number(after.balance) === Number(before.balance) + 120000, 'CASH_IN should credit customer pocket');
+  await assertTotalUnchanged(baseline, 'CASH_IN');
+  printOk('CASH_IN runs server-side without customer PIN');
+}
+
+async function runBillPaymentReplay(engine, customer, baseline) {
+  const req = await engine.processRequest('BILL_PAYMENT', {
+    billerCode: 'EVN',
+    billCode: 'EVN001',
+  }, { userId: customer.id, user: customer });
+
+  assert(Number(req.amount) === 58000, 'BILL_PAYMENT request should use inquiry amount');
+  const first = await engine.processVerify(req.transRefId, customer.pin, { userId: customer.id, user: customer });
+  assert(first.status === 'done', 'BILL_PAYMENT should be done');
+
+  const txn = await Transaction.findOne({ transRefId: req.transRefId });
+  assert(txn && txn.billerRefId, 'BILL_PAYMENT should store billerRefId');
+
+  const beforeReplay = await snapshotRef(req.transRefId);
+  const second = await engine.processVerify(req.transRefId, customer.pin, { userId: customer.id, user: customer });
+  assert(second.replay === true, 'BILL_PAYMENT second verify should be replay');
+  await expectReplayStable(req.transRefId, beforeReplay, 'BILL_PAYMENT replay');
+  await assertTotalUnchanged(baseline, 'BILL_PAYMENT replay');
+  printOk('BILL_PAYMENT inquiry/payment and replay are idempotent');
 }
 
 async function runCardTopup(engine, customer, baseline) {
@@ -233,7 +267,7 @@ async function runInterbankSuccessReplay(engine, customer, baseline) {
     destAccount: '1234567890',
   }, { userId: customer.id, user: customer });
 
-  const verify = await engine.processVerify(req.transRefId, customer.password, { userId: customer.id, user: customer });
+  const verify = await engine.processVerify(req.transRefId, customer.pin, { userId: customer.id, user: customer });
   assert(verify.status === 'processing', 'INTERBANK_OUT should wait for callback');
 
   const first = await engine.processCallback('NAPAS', { refId: req.transRefId, state: 'SUCCESS' });
@@ -254,7 +288,7 @@ async function runInterbankFailedReplay(engine, customer, baseline) {
     destAccount: '2234567890',
   }, { userId: customer.id, user: customer });
 
-  const verify = await engine.processVerify(req.transRefId, customer.password, { userId: customer.id, user: customer });
+  const verify = await engine.processVerify(req.transRefId, customer.pin, { userId: customer.id, user: customer });
   assert(verify.status === 'processing', 'INTERBANK_OUT reversal case should wait for callback');
 
   const first = await engine.processCallback('NAPAS', { refId: req.transRefId, state: 'FAILED' });
@@ -275,7 +309,7 @@ async function runTimeoutRecovery(engine, customer, baseline) {
     destAccount: '3234567890',
   }, { userId: customer.id, user: customer });
 
-  const verify = await engine.processVerify(req.transRefId, customer.password, { userId: customer.id, user: customer });
+  const verify = await engine.processVerify(req.transRefId, customer.pin, { userId: customer.id, user: customer });
   assert(verify.status === 'processing', 'timeout case should wait for callback');
 
   const napas = await Connector.findOne({ code: 'NAPAS' });
@@ -309,10 +343,13 @@ async function main() {
   const engine = require('../api/services/engine');
   const alice = await createCustomer('0910000001', 1000000);
   const bob = await createCustomer('0910000002', 1000000);
+  const officer = await Officer.findOne({ username: 'admin' });
   const baseline = await sumBalances();
   await assertPocketIntegrity('baseline');
 
+  await runCashIn(engine, officer, alice, baseline);
   await runP2PReplay(engine, alice, bob, baseline);
+  await runBillPaymentReplay(engine, alice, baseline);
   await runCardTopup(engine, alice, baseline);
   await runInterbankSuccessReplay(engine, alice, baseline);
   await runInterbankFailedReplay(engine, alice, baseline);

@@ -519,8 +519,30 @@ code {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .grid.four {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.inline-form {
+  align-items: end;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 150px minmax(180px, 1fr) minmax(160px, 220px) auto;
+  margin-bottom: 18px;
+}
+
+.customer-actions .action-group-card {
+  background: #fff;
+}
+
+.design-grid textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  min-height: 220px;
 }
 
 .metric-grid {
@@ -658,9 +680,11 @@ th {
   .auth-panel {
     padding: 22px;
   }
-  .grid.two,
-  .grid.four,
-  .action-group-grid,
+	  .grid.two,
+	  .grid.three,
+	  .grid.four,
+	  .inline-form,
+	  .action-group-grid,
   .action-select-row,
   .service-group-tabs,
   .metric-grid,

@@ -13,6 +13,14 @@ const SERVICES = {
       { name: 'amount', label: 'Số tiền', type: 'number' },
     ],
   },
+  BILL_PAYMENT: {
+    label: 'Thanh toán hoá đơn',
+    description: 'Tra cứu số tiền từ nhà cung cấp rồi thanh toán bằng ví.',
+    fields: [
+      { name: 'billerCode', label: 'Nhà cung cấp', type: 'biller' },
+      { name: 'billCode', label: 'Mã hoá đơn', placeholder: 'Ví dụ: EVN001' },
+    ],
+  },
   INTERBANK_OUT: {
     label: 'Chuyển liên ngân hàng',
     description: 'Chuyển tiền tới tài khoản ngân hàng ngoài hệ thống.',
@@ -50,11 +58,17 @@ const SERVICES = {
 };
 
 const SERVICE_GROUPS = {
-  TRANSFER: {
+  CORE: {
     eyebrow: 'Giao dịch',
-    title: 'Tạo giao dịch',
-    description: 'Chỉ gồm các luồng chuyển tiền.',
-    services: ['P2P', 'INTERBANK_OUT'],
+    title: 'Giao dịch chính',
+    description: 'Các nghiệp vụ lõi theo Mini Wallet.',
+    services: ['P2P', 'BILL_PAYMENT'],
+  },
+  TRANSFER: {
+    eyebrow: 'Mở rộng',
+    title: 'Chuyển ngoài hệ thống',
+    description: 'Luồng chuyển liên ngân hàng qua đối tác.',
+    services: ['INTERBANK_OUT'],
   },
   LINK_SOURCE: {
     eyebrow: 'Nguồn tiền',
@@ -70,34 +84,35 @@ const SERVICE_GROUPS = {
   },
 };
 
-const SERVICE_GROUP_ORDER = ['TRANSFER', 'LINK_SOURCE', 'TOPUP'];
+const SERVICE_GROUP_ORDER = ['CORE', 'TRANSFER', 'LINK_SOURCE', 'TOPUP'];
 
 function groupForService(serviceCode) {
   return SERVICE_GROUP_ORDER.find((key) => SERVICE_GROUPS[key].services.includes(serviceCode)) || 'TRANSFER';
 }
 
 function authPlaceholder(method) {
-  if (method === 'PASSWORD') return 'Nhập mật khẩu xác nhận';
+  if (method === 'PIN') return 'Nhập PIN xác nhận';
   if (method === 'OTP') return 'Nhập mã OTP';
   if (method === '3DS') return 'Nhập mã xác thực thẻ';
   return 'Nhập mã xác nhận';
 }
 
 function authLabel(method) {
-  if (method === 'PASSWORD') return 'Xác nhận bằng mật khẩu';
+  if (method === 'PIN') return 'Xác nhận bằng PIN';
   if (method === 'OTP') return 'Xác nhận OTP';
   if (method === '3DS') return 'Xác thực thẻ';
   return 'Xác nhận giao dịch';
 }
 
 function authPayload(method, credential) {
+  if (method === 'PIN') return { pin: credential };
   if (method === 'OTP') return { otp: credential };
   if (method === '3DS') return { threeDs: credential };
-  return { password: credential };
+  return { pin: credential };
 }
 
 function normalizeAuthMethod(method) {
-  return method === 'PIN' ? 'PASSWORD' : method;
+  return method || 'NONE';
 }
 
 export default function NewTransaction() {
@@ -108,12 +123,13 @@ export default function NewTransaction() {
   const [params, setParams] = useState({});
   const [step, setStep] = useState('form');
   const [preview, setPreview] = useState(null);
-  const [authMethod, setAuthMethod] = useState('PASSWORD');
+  const [authMethod, setAuthMethod] = useState('PIN');
   const [cred, setCred] = useState('');
   const [result, setResult] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [instruments, setInstruments] = useState([]);
+  const [billers, setBillers] = useState([]);
 
   const cardInstruments = useMemo(
     () => instruments.filter((x) => x.type === 'card' && x.status === 'active'),
@@ -124,6 +140,9 @@ export default function NewTransaction() {
     api.get('/customer/instruments')
       .then((res) => setInstruments(res.instruments || []))
       .catch(() => setInstruments([]));
+    api.get('/customer/billers')
+      .then((res) => setBillers(res.billers || []))
+      .catch(() => setBillers([]));
   }, []);
 
   function setValue(k, v) {
@@ -210,6 +229,19 @@ export default function NewTransaction() {
       );
     }
 
+    if (field.type === 'biller') {
+      return (
+        <Field key={field.name} label={field.label}>
+          <select value={params[field.name] || ''} onChange={(e) => setValue(field.name, e.target.value)}>
+            <option value="">Chọn nhà cung cấp</option>
+            {billers.map((x) => (
+              <option key={x.code} value={x.code}>{x.name}</option>
+            ))}
+          </select>
+        </Field>
+      );
+    }
+
     return (
       <Field key={field.name} label={field.label}>
         <input
@@ -273,6 +305,9 @@ export default function NewTransaction() {
                 action={<Button type="button" onClick={() => switchService('LINK_CARD')}>Liên kết thẻ</Button>}
               />
             )}
+            {serviceCode === 'BILL_PAYMENT' && billers.length === 0 && (
+              <EmptyState title="Chưa có nhà cung cấp hoá đơn đang bật" />
+            )}
             <Button className="form-submit" disabled={busy}>{busy ? 'Đang xử lý...' : 'Tiếp tục'}</Button>
           </form>
         )}
@@ -288,9 +323,12 @@ export default function NewTransaction() {
                   <b>{formatMoney(preview.total, '')}</b>
                 </p>
               )}
+              {serviceCode === 'BILL_PAYMENT' && (
+                <p className="muted">Số tiền được hệ thống tra cứu từ nhà cung cấp, bạn không cần tự nhập.</p>
+              )}
             </div>
             <Field label={authLabel(authMethod)}>
-              <input placeholder={authPlaceholder(authMethod)} type="password" value={cred} onChange={(e) => setCred(e.target.value)} autoComplete="current-password" required />
+              <input placeholder={authPlaceholder(authMethod)} type="password" value={cred} onChange={(e) => setCred(e.target.value.replace(/\D/g, '').slice(0, 6))} autoComplete="current-password" inputMode="numeric" required />
             </Field>
             <div className="button-row">
               <Button disabled={busy}>{busy ? 'Đang xử lý...' : 'Xác nhận'}</Button>

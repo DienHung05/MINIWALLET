@@ -1,13 +1,12 @@
 module.exports = {
   attributes: {
-    username: { type: 'string', required: true, unique: true },
+    username: { type: 'string', unique: true, allowNull: true },
     phone: { type: 'string', required: true, unique: true },
-    passwordHash: { type: 'string', required: true },
-    pinHash: { type: 'string', defaultsTo: '' },
+    pinHash: { type: 'string', required: true },
     name: { type: 'string', defaultsTo: '' },
     pocket: { model: 'pocket' },
     status: { type: 'string', isIn: ['active', 'frozen'], defaultsTo: 'active' },
-    passwordResetTokenHash: { type: 'string', defaultsTo: '' },
-    passwordResetExpiresAt: { type: 'number', defaultsTo: 0 },
+    pinResetTokenHash: { type: 'string', defaultsTo: '' },
+    pinResetExpiresAt: { type: 'number', defaultsTo: 0 },
   },
 };

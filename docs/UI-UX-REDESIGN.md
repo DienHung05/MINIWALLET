@@ -1,4 +1,6 @@
-# UI/UX Redesign — Mini Wallet
+K
+
+![1784187433821](image/UI-UX-REDESIGN/1784187433821.png)# UI/UX Redesign — Mini Wallet
 
 ## 1. Mục tiêu
 
@@ -16,21 +18,21 @@ Thiết kế lại frontend để Mini Wallet trông như một sản phẩm ví
 
 Không dùng thuật ngữ nội bộ trong UI customer.
 
-| Thuật ngữ kỹ thuật | Hiển thị cho người dùng |
-|---|---|
-| Customer | Khách hàng |
-| Officer | Quản trị viên |
-| Pocket | Ví |
-| Instrument | Nguồn tiền liên kết |
-| Instrument ID | Mã nguồn liên kết |
-| TransactionTrail | Nhật ký giao dịch |
-| Connector | Kết nối đối tác |
-| Operation | Thao tác hỗ trợ |
-| Callback | Cập nhật trạng thái từ đối tác |
-| Nostro | Số dư đối tác |
-| Reconcile | Đối soát |
-| Processing | Đang xử lý |
-| Reversed | Đã hoàn tiền |
+| Thuật ngữ kỹ thuật | Hiển thị cho người dùng           |
+| ---------------------- | -------------------------------------- |
+| Customer               | Khách hàng                           |
+| Officer                | Quản trị viên                       |
+| Pocket                 | Ví                                    |
+| Instrument             | Nguồn tiền liên kết                |
+| Instrument ID          | Mã nguồn liên kết                  |
+| TransactionTrail       | Nhật ký giao dịch                   |
+| Connector              | Kết nối đối tác                   |
+| Operation              | Thao tác hỗ trợ                     |
+| Callback               | Cập nhật trạng thái từ đối tác |
+| Nostro                 | Số dư đối tác                     |
+| Reconcile              | Đối soát                            |
+| Processing             | Đang xử lý                          |
+| Reversed               | Đã hoàn tiền                       |
 
 ## 3. Cấu trúc màn hình đề xuất
 
@@ -39,20 +41,19 @@ Không dùng thuật ngữ nội bộ trong UI customer.
 - `/` hoặc `/login`: màn đăng nhập chính cho khách hàng.
 - `/admin/login`: màn đăng nhập quản trị viên.
 - `/register`: đăng ký khách hàng.
-- `/forgot-password`: quên mật khẩu.
-- `/reset-password`: đặt lại mật khẩu.
+- `/forgot-pin`: quên PIN.
+- `/reset-pin`: đặt lại PIN.
 
-Khách hàng đăng nhập bằng `username/password` hoặc `phone/password`.
+Khách hàng đăng nhập bằng `phone/pin`.
 
 Quản trị viên dùng một tài khoản mặc định do hệ thống seed, ví dụ `admin/admin123`.
 
 Đăng ký khách hàng gồm:
 
 - Họ tên.
-- Username.
 - Số điện thoại.
-- Mật khẩu.
-- Nhập lại mật khẩu.
+- PIN.
+- Nhập lại PIN.
 
 Số điện thoại vẫn dùng cho chuyển tiền P2P và xác minh khôi phục.
 
@@ -239,18 +240,14 @@ Component nên có:
 
 ## 7. Backend/Auth hiện tại
 
-Redesign auth đã được triển khai.
+Auth customer đã quay về đúng `MINIWALLET.md`.
 
-- `Customer` có `username` unique, `phone` unique, `passwordHash` và reset token fields.
-- `pinHash` vẫn được giữ để engine xác nhận giao dịch theo cấu hình cũ; trong MVP hash này được set cùng mật khẩu.
-- `customer/register` nhận `{ username, password, phone, name }`.
-- `customer/login` nhận `{ identifier, password }`, trong đó `identifier` có thể là username hoặc số điện thoại.
+- `Customer` dùng `phone`, `pinHash`, `name`, `pocket`, `status`, reset token fields cho PIN.
+- `customer/register` nhận `{ name, phone, pin }`.
+- `customer/login` nhận `{ phone, pin }`.
+- `customer/forgot-pin` và `customer/reset-pin` đã có API + UI.
 - `officer/login` giữ `{ username, password }` và dùng tài khoản admin mặc định đã seed.
-- Đã có:
-  - `POST /api/customer/forgot-password`
-  - `POST /api/customer/reset-password`
-
-Trong dev/MVP, forgot password có thể trả reset token trong response để demo, nhưng UI không gọi nó là mock.
+- Customer dùng cùng một PIN cho đăng nhập và xác nhận các service `auth.method = PIN`.
 
 ## 8. Roadmap sản phẩm
 
@@ -258,28 +255,28 @@ Roadmap engine hiện tại đúng hướng. Lớp sản phẩm phía trên engi
 
 Trạng thái hiện tại:
 
-- Customer đăng ký/đăng nhập bằng username hoặc số điện thoại + mật khẩu.
-- Customer có quên mật khẩu và đặt lại mật khẩu.
+- Customer đăng ký/đăng nhập bằng số điện thoại + PIN.
+- Customer có quên PIN và đặt lại PIN.
 - Admin đã có tài khoản mặc định seed trong `bootstrap`: `admin/admin123`.
-- Customer UI đã có dashboard, tạo giao dịch P2P, liên ngân hàng, liên kết ngân hàng, liên kết thẻ, nạp tiền từ thẻ, lịch sử và nguồn tiền liên kết.
-- Admin UI đã có tổng quan, integrity, recover, đối soát, connector CRUD/test và trail viewer.
-- Backend đã có connector mock VCB/VISA/NAPAS, callback async, janitor recover, interbank out, LINK_CARD và CARD_TOPUP.
+- Customer UI đã có dashboard theo nghiệp vụ lõi, P2P, Bill Payment, lịch sử; extension liên ngân hàng, liên kết ngân hàng/thẻ, nạp tiền từ thẻ tách riêng.
+- Admin UI đã có tổng quan, Service, Transaction Design, Ví, Biller, Customer, Cash-in, Trail, History, đối soát, connector CRUD/test và công cụ kỹ thuật.
+- Backend đã có P2P, CASH_IN, BILL_PAYMENT, mock Biller, connector mock VCB/VISA/NAPAS, callback async, janitor recover, interbank out, LINK_CARD và CARD_TOPUP.
 - D1 đối soát đã có endpoint/UI.
 - D2 connector CRUD và trail viewer mở rộng đã có.
 - B4/B5 đã có trong backend và frontend customer.
 
 Các cụm nên làm tiếp:
 
-| Cụm | Mục tiêu | Ghi chú UI/UX |
-|---|---|---|
-| P0 | Auth customer mới | Đăng ký bằng họ tên, username, số điện thoại, mật khẩu; đăng nhập bằng username hoặc số điện thoại; forgot/reset password. |
-| P1 | AppShell + design system | Tách shell customer/admin, navigation rõ, component chung, responsive mobile. |
-| P2 | Customer flows | Dashboard ví, chuyển tiền, chuyển liên ngân hàng, liên kết ngân hàng/thẻ, nạp tiền, lịch sử. |
-| P3 | Admin flows | Tổng quan vận hành, giao dịch, đối soát, connector, công cụ kỹ thuật. |
-| P4 | Backend còn thiếu | Đã hoàn thành D1 reconcile, D2 connector CRUD, B4 LINK_CARD, B5 CARD_TOPUP trong MVP. |
-| P5 | Hardening | Build pass, test idempotency/reversal/timeout, property test bảo toàn tổng số dư. |
+| Cụm | Mục tiêu               | Ghi chú UI/UX                                                                                                                                  |
+| ---- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0   | Auth customer theo spec | Đăng ký bằng họ tên, số điện thoại, PIN; đăng nhập bằng số điện thoại + PIN; forgot/reset PIN. |
+| P1   | AppShell + design system | Tách shell customer/admin, navigation rõ, component chung, responsive mobile.                                                                 |
+| P2   | Customer flows           | Dashboard ví, P2P, Bill Payment, lịch sử; extension nguồn tiền tách riêng.                                    |
+| P3   | Admin flows              | Tổng quan, Service, Transaction Design, Ví, Biller, Customer, Cash-in, Trail, History, đối soát, connector, công cụ kỹ thuật. |
+| P4   | Backend theo MINIWALLET  | Đã hoàn thành P2P, CASH_IN, BILL_PAYMENT, mock Biller, API Service/Wallet/Biller/Customer/Cash-in/History. |
+| P5   | Hardening                | Build pass, test idempotency/reversal/timeout, property test bảo toàn tổng số dư.                                                          |
 
-Lưu ý quan trọng: UI/API customer dùng `password` cho đăng nhập, đăng ký và xác nhận giao dịch. Engine vẫn có tên method nội bộ `PIN` trong config cũ, nhưng UI hiển thị là “mật khẩu xác nhận” để người dùng không phải hiểu thuật ngữ kỹ thuật.
+Lưu ý quan trọng: UI/API customer dùng `pin`; admin vẫn dùng username/password riêng.
 
 ## 9. Acceptance checklist
 
@@ -291,7 +288,7 @@ Lưu ý quan trọng: UI/API customer dùng `password` cho đăng nhập, đăng
 - Không còn chữ `mock`, `operation`, `instrument`, `trail` xuất hiện trong UI customer.
 - Các công cụ test/mock chỉ nằm trong khu vực “Công cụ kỹ thuật” của admin.
 - Admin không cần hiểu JSON để theo dõi giao dịch thường ngày.
-- Customer có thể đăng nhập bằng username hoặc số điện thoại.
-- Customer có luồng quên mật khẩu/đặt lại mật khẩu.
+- Customer có thể đăng nhập bằng số điện thoại + PIN.
+- Customer có luồng quên PIN/đặt lại PIN.
 - Frontend responsive trên mobile.
 - `npm run build` pass.

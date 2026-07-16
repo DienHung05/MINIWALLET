@@ -4,8 +4,8 @@ import api from '../../api/client.js';
 import AuthLayout from '../../components/AuthLayout.jsx';
 import { Alert, Button, Field } from '../../components/ui.jsx';
 
-export default function ForgotPassword() {
-  const [identifier, setIdentifier] = useState('');
+export default function ForgotPin() {
+  const [phone, setPhone] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [expiresAt, setExpiresAt] = useState(0);
   const [err, setErr] = useState('');
@@ -17,9 +17,9 @@ export default function ForgotPassword() {
     setResetToken('');
     setLoading(true);
     try {
-      const res = await api.post('/customer/forgot-password', { identifier });
+      const res = await api.post('/customer/forgot-pin', { phone: phone.replace(/\s/g, '') });
       if (!res.resetToken) {
-        setErr('Không tìm thấy tài khoản đang hoạt động với thông tin này');
+        setErr('Không tìm thấy tài khoản đang hoạt động với số điện thoại này');
         return;
       }
       setResetToken(res.resetToken);
@@ -34,13 +34,13 @@ export default function ForgotPassword() {
   return (
     <AuthLayout
       eyebrow="Khôi phục"
-      title="Quên mật khẩu"
-      subtitle="Nhập username hoặc số điện thoại để tạo mã đặt lại mật khẩu."
+      title="Quên PIN"
+      subtitle="Nhập số điện thoại để tạo mã đặt lại PIN."
       footer={<Link to="/login">Quay lại đăng nhập</Link>}
     >
       <form onSubmit={submit}>
-        <Field label="Username hoặc số điện thoại">
-          <input placeholder="linh.nguyen hoặc 0912345678" value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
+        <Field label="Số điện thoại">
+          <input placeholder="0912345678" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" inputMode="tel" />
         </Field>
         <Button className="full-width" disabled={loading}>{loading ? 'Đang tạo mã...' : 'Tạo mã đặt lại'}</Button>
       </form>
@@ -48,10 +48,10 @@ export default function ForgotPassword() {
       <Alert tone="error">{err}</Alert>
       {resetToken && (
         <div className="reset-token-box">
-          <p className="muted">Mã đặt lại mật khẩu:</p>
+          <p className="muted">Mã đặt lại PIN:</p>
           <code>{resetToken}</code>
           <p className="muted">Hết hạn: {expiresAt ? new Date(expiresAt).toLocaleString('vi-VN') : '15 phút'}</p>
-          <Link className="button-link" to={`/reset-password?token=${encodeURIComponent(resetToken)}`}>Đặt lại mật khẩu</Link>
+          <Link className="button-link" to={`/reset-pin?token=${encodeURIComponent(resetToken)}`}>Đặt lại PIN</Link>
         </div>
       )}
     </AuthLayout>

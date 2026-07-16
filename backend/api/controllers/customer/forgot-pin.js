@@ -4,11 +4,11 @@ function hashResetToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-module.exports = async function forgotPassword(req, res) {
-  const identifier = `${req.param('identifier') || req.param('username') || req.param('phone') || ''}`.trim().toLowerCase();
-  if (!identifier) return res.fail(400, 'Thiếu username hoặc số điện thoại');
+module.exports = async function forgotPin(req, res) {
+  const phone = `${req.param('phone') || ''}`.replace(/\s/g, '');
+  if (!phone) return res.fail(400, 'Thiếu số điện thoại');
 
-  const customer = await Customer.findOne({ or: [{ username: identifier }, { phone: identifier }] });
+  const customer = await Customer.findOne({ phone });
   if (!customer || customer.status !== 'active') {
     return res.ok({ resetToken: null, expiresAt: 0 });
   }
@@ -17,16 +17,16 @@ module.exports = async function forgotPassword(req, res) {
   const expiresAt = Date.now() + 15 * 60 * 1000;
 
   await Customer.updateOne(customer.id).set({
-    passwordResetTokenHash: hashResetToken(resetToken),
-    passwordResetExpiresAt: expiresAt,
+    pinResetTokenHash: hashResetToken(resetToken),
+    pinResetExpiresAt: expiresAt,
   });
 
   return res.ok({
     resetToken,
     expiresAt,
     customer: {
-      username: customer.username,
       phone: customer.phone,
+      name: customer.name,
     },
   });
 };
