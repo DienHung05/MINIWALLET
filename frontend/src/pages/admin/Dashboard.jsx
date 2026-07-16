@@ -3,6 +3,8 @@ import api from '../../api/client.js';
 import { Alert, Button, DataTable, Field, Metric, SectionHeader, StatusBadge } from '../../components/ui.jsx';
 import { formatDateTime, formatMoney, serviceLabel, statusLabel } from '../../utils/format.js';
 
+const ADMIN_PAGE_SIZE = 5;
+
 const EMPTY_CONNECTOR = {
   code: '',
   name: '',
@@ -24,9 +26,7 @@ const TABS = [
   ['cashin', 'Cash-in'],
   ['trails', 'Trail'],
   ['history', 'History'],
-  ['reconcile', 'Đối soát'],
   ['connectors', 'Kết nối'],
-  ['tools', 'Công cụ'],
 ];
 
 function pretty(value) {
@@ -37,6 +37,38 @@ function parseJson(text, fallback) {
   return text.trim() ? JSON.parse(text) : fallback;
 }
 
+function getPageItems(page, totalPages) {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+  if (page <= 3) return [1, 2, 3, '...', totalPages - 2, totalPages - 1, totalPages];
+  if (page >= totalPages - 2) return [1, '...', totalPages - 2, totalPages - 1, totalPages];
+  return [1, '...', page - 1, page, page + 1, '...', totalPages];
+}
+
+function PagePagination({ page, pagination, loading, label, onChange }) {
+  if (pagination.totalPages < 1) return null;
+  return (
+    <nav className="pagination" aria-label={label}>
+      <div className="pagination-pages">
+        {getPageItems(page, pagination.totalPages).map((item, index) => item === '...'
+          ? <span className="pagination-ellipsis" key={`ellipsis-${index}`}>...</span>
+          : (
+            <button
+              className={`page-number ${page === item ? 'active' : ''}`}
+              disabled={loading || page === item}
+              key={item}
+              onClick={() => onChange(item)}
+            >
+              {item}
+            </button>
+          ))}
+      </div>
+      <span className="pagination-status">
+        Trang {page} / {pagination.totalPages}
+      </span>
+    </nav>
+  );
+}
+
 export default function AdminDashboard() {
   const [tab, setTab] = useState('overview');
   const [report, setReport] = useState(null);
@@ -45,17 +77,21 @@ export default function AdminDashboard() {
   const [billers, setBillers] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [history, setHistory] = useState([]);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPagination, setHistoryPagination] = useState({ page: 1, pageSize: ADMIN_PAGE_SIZE, total: 0, totalPages: 0 });
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [trails, setTrails] = useState([]);
+  const [trailPage, setTrailPage] = useState(1);
+  const [trailPagination, setTrailPagination] = useState({ page: 1, pageSize: ADMIN_PAGE_SIZE, total: 0, totalPages: 0 });
+  const [trailLoading, setTrailLoading] = useState(false);
   const [connectors, setConnectors] = useState([]);
-  const [reconcile, setReconcile] = useState(null);
   const [err, setErr] = useState('');
-  const [out, setOut] = useState('');
+  const [notice, setNotice] = useState('');
 
   const [selectedTrail, setSelectedTrail] = useState(null);
   const [trailStatus, setTrailStatus] = useState('processing');
   const [trailService, setTrailService] = useState('');
   const [trailRef, setTrailRef] = useState('');
-  const [partnerBalance, setPartnerBalance] = useState('');
 
   const [cashInForm, setCashInForm] = useState({ customerPhone: '', amount: '' });
   const [walletForm, setWalletForm] = useState({ ownerType: 'bank', ownerRef: '', balance: '' });
@@ -82,11 +118,6 @@ export default function AdminDashboard() {
     glSteps: '[]',
   });
 
-  const [connectorCode, setConnectorCode] = useState('VCB');
-  const [operation, setOperation] = useState('sendOtp');
-  const [args, setArgs] = useState('{"account":"0123456789"}');
-  const [refId, setRefId] = useState('');
-  const [state, setState] = useState('SUCCESS');
   const [connectorForm, setConnectorForm] = useState(EMPTY_CONNECTOR);
 
   const processingCount = useMemo(
@@ -125,31 +156,48 @@ export default function AdminDashboard() {
     setCustomers(r.customers || []);
   }
 
-  async function loadHistory() {
-    const r = await api.get('/admin/history?limit=50');
-    setHistory(r.history || []);
+  async function loadHistory(page = 1) {
+    setHistoryLoading(true);
+    try {
+      const r = await api.get(`/admin/history?page=${page}&limit=${ADMIN_PAGE_SIZE}`);
+      setHistory(r.history || []);
+      setHistoryPagination(r.pagination || {
+        page,
+        pageSize: ADMIN_PAGE_SIZE,
+        total: r.history?.length || 0,
+        totalPages: r.history?.length ? 1 : 0,
+      });
+      setHistoryPage(page);
+    } finally {
+      setHistoryLoading(false);
+    }
   }
 
-  async function loadTrails(status = trailStatus) {
-    const params = new URLSearchParams({ status, limit: '50' });
+  async function loadTrails(status = trailStatus, page = 1) {
+    setTrailLoading(true);
+    const params = new URLSearchParams({ status, page: `${page}`, limit: `${ADMIN_PAGE_SIZE}` });
     if (trailService) params.set('serviceCode', trailService);
     if (trailRef) params.set('transRefId', trailRef);
-    const r = await api.get(`/admin/trails?${params.toString()}`);
-    setTrails(r.trails || []);
-    setSelectedTrail(null);
-  }
-
-  async function loadReconcile() {
-    const query = partnerBalance === '' ? '' : `?partnerBalance=${encodeURIComponent(partnerBalance)}`;
-    const r = await api.get(`/admin/reconcile${query}`);
-    setReconcile(r.report);
+    try {
+      const r = await api.get(`/admin/trails?${params.toString()}`);
+      setTrails(r.trails || []);
+      setTrailPagination(r.pagination || {
+        page,
+        pageSize: ADMIN_PAGE_SIZE,
+        total: r.trails?.length || 0,
+        totalPages: r.trails?.length ? 1 : 0,
+      });
+      setTrailPage(page);
+      setSelectedTrail(null);
+    } finally {
+      setTrailLoading(false);
+    }
   }
 
   async function loadConnectors() {
     const r = await api.get('/admin/connectors');
     const rows = r.connectors || [];
     setConnectors(rows);
-    if (rows.length > 0 && !rows.some((c) => c.code === connectorCode)) setConnectorCode(rows[0].code);
   }
 
   async function refreshAll() {
@@ -163,7 +211,6 @@ export default function AdminDashboard() {
         loadCustomers(),
         loadHistory(),
         loadTrails(),
-        loadReconcile(),
         loadConnectors(),
       ]);
     } catch (e) {
@@ -188,14 +235,6 @@ export default function AdminDashboard() {
       glSteps: pretty(selectedService.glSteps || []),
     });
   }, [selectedService?.code]);
-
-  async function runRecover() {
-    try {
-      const r = await api.post('/admin/recover');
-      setOut(JSON.stringify(r.summary, null, 2));
-      await refreshAll();
-    } catch (e) { setErr(e.message); }
-  }
 
   async function toggleService(code, enabled) {
     try {
@@ -222,7 +261,7 @@ export default function AdminDashboard() {
         glSteps: parseJson(designForm.glSteps, []),
       });
       await loadServices();
-      setOut('Đã lưu cấu hình service ' + selectedService.code);
+      setNotice('Đã lưu cấu hình service ' + selectedService.code);
     } catch (e) {
       setErr(e.message || 'JSON cấu hình không hợp lệ');
     }
@@ -260,40 +299,14 @@ export default function AdminDashboard() {
   async function runCashIn(e) {
     e.preventDefault();
     try {
-      const r = await api.post('/admin/cash-in', {
+      await api.post('/admin/cash-in', {
         customerPhone: cashInForm.customerPhone,
         amount: Number(cashInForm.amount || 0),
       });
-      setOut(JSON.stringify(r.result, null, 2));
+      setNotice('Đã nạp tiền cho khách hàng.');
       setCashInForm({ customerPhone: '', amount: '' });
-      await Promise.all([loadWallets(), loadCustomers(), loadHistory(), loadTrails('all'), loadIntegrity()]);
+      await Promise.all([loadWallets(), loadCustomers(), loadHistory(1), loadTrails('all', 1), loadIntegrity()]);
     } catch (e) { setErr(e.message); }
-  }
-
-  async function mockCallback() {
-    try {
-      const r = await api.post('/txn/callback/NAPAS', { refId, state });
-      setOut(JSON.stringify(r, null, 2));
-      await refreshAll();
-    } catch (e) { setErr(e.message); }
-  }
-
-  async function testConnector() {
-    setErr('');
-    try {
-      const parsedArgs = args.trim() ? JSON.parse(args) : {};
-      const r = await api.post('/admin/connector/test', { connectorCode, operation, args: parsedArgs });
-      setOut(JSON.stringify(r.result, null, 2));
-    } catch (e) {
-      setErr(e.message || 'JSON args không hợp lệ');
-    }
-  }
-
-  function chooseForCallback(t) {
-    setRefId(t.transRefId);
-    setState('SUCCESS');
-    setTab('tools');
-    setOut(`Đã chọn giao dịch ${t.transRefId} cho callback NAPAS.`);
   }
 
   function editConnector(c) {
@@ -354,11 +367,12 @@ export default function AdminDashboard() {
           ))}
         </div>
         <Alert tone="error">{err}</Alert>
+        <Alert tone="success">{notice}</Alert>
       </section>
 
       {tab === 'overview' && (
         <section className="panel">
-          <SectionHeader title="Tổng quan" action={<Button variant="secondary" onClick={runRecover}>Recover</Button>} />
+          <SectionHeader title="Tổng quan" />
           <div className="metric-grid">
             <Metric label="Tổng số dư" value={formatMoney(report?.totalBalance || 0)} />
             <Metric label="Số ví" value={wallets.length || report?.pocketCount || 0} />
@@ -367,7 +381,6 @@ export default function AdminDashboard() {
             <Metric label="Khách hàng" value={customers.length} />
             <Metric label="Biller" value={billers.filter((b) => b.status !== 'disabled').length} />
             <Metric label="Đang xử lý" value={processingCount} />
-            <Metric label="Tiền treo" value={formatMoney(reconcile?.suspenseBalance || 0)} />
           </div>
         </section>
       )}
@@ -520,10 +533,10 @@ export default function AdminDashboard() {
 
       {tab === 'trails' && (
         <section className="panel">
-          <SectionHeader title="Transaction Trail" action={<Button onClick={() => loadTrails()}>Tải nhật ký</Button>} />
+          <SectionHeader title="Transaction Trail" action={<Button onClick={() => loadTrails(trailStatus, 1)}>Tải nhật ký</Button>} />
           <div className="grid three">
             <Field label="Trạng thái">
-              <select value={trailStatus} onChange={(e) => { setTrailStatus(e.target.value); loadTrails(e.target.value); }}>
+              <select value={trailStatus} onChange={(e) => { setTrailStatus(e.target.value); loadTrails(e.target.value, 1); }}>
                 <option value="processing">Đang xử lý</option>
                 <option value="pending">Chờ xác nhận</option>
                 <option value="done">Thành công</option>
@@ -549,14 +562,29 @@ export default function AdminDashboard() {
                 label: '',
                 render: (t) => (
                   <div className="row-actions">
-                    <Button variant="secondary" onClick={() => chooseForCallback(t)}>Callback</Button>
-                    <Button variant="ghost" onClick={() => setSelectedTrail(t)}>Chi tiết</Button>
+                    <Button className="btn-compact" variant="secondary" onClick={() => setSelectedTrail(t)}>Log</Button>
                   </div>
                 ),
               },
             ]}
           />
-          {selectedTrail && <pre className="output-box">{JSON.stringify(selectedTrail, null, 2)}</pre>}
+          <PagePagination
+            label="Phân trang transaction trail"
+            loading={trailLoading}
+            onChange={(nextPage) => loadTrails(trailStatus, nextPage)}
+            page={trailPage}
+            pagination={trailPagination}
+          />
+          {selectedTrail && (
+            <div className="trail-log-panel">
+              <SectionHeader
+                eyebrow="Trace / Debug"
+                title={`Step log · ${selectedTrail.transRefId}`}
+                action={<Button variant="ghost" onClick={() => setSelectedTrail(null)}>Đóng</Button>}
+              />
+              <pre className="output-box">{JSON.stringify(selectedTrail.stepLog || [], null, 2)}</pre>
+            </div>
+          )}
         </section>
       )}
 
@@ -575,23 +603,13 @@ export default function AdminDashboard() {
               { key: 'createdAt', label: 'Thời gian', render: (h) => formatDateTime(h.createdAt) },
             ]}
           />
-        </section>
-      )}
-
-      {tab === 'reconcile' && (
-        <section className="panel">
-          <SectionHeader title="Đối soát NAPAS" action={<Button onClick={loadReconcile}>Chạy đối soát</Button>} />
-          <Field label="Số dư sao kê đối tác">
-            <input placeholder="Để trống nếu chưa có sao kê" type="number" value={partnerBalance} onChange={(e) => setPartnerBalance(e.target.value)} />
-          </Field>
-          <div className="metric-grid">
-            <Metric label="Trạng thái" value={reconcile?.matched ? 'Khớp' : 'Lệch'} />
-            <Metric label="Sổ ví" value={formatMoney(reconcile?.ledgerBalance || 0)} />
-            <Metric label="Đối tác" value={formatMoney(reconcile?.partnerBalance || 0)} />
-            <Metric label="Chênh lệch" value={formatMoney(reconcile?.difference || 0)} />
-            <Metric label="Tiền treo" value={formatMoney(reconcile?.suspenseBalance || 0)} />
-            <Metric label="Cần chú ý" value={reconcile?.unsettledCount || 0} />
-          </div>
+          <PagePagination
+            label="Phân trang transaction history"
+            loading={historyLoading}
+            onChange={loadHistory}
+            page={historyPage}
+            pagination={historyPagination}
+          />
         </section>
       )}
 
@@ -641,36 +659,6 @@ export default function AdminDashboard() {
         </section>
       )}
 
-      {tab === 'tools' && (
-        <section className="panel">
-          <SectionHeader title="Công cụ kỹ thuật" />
-          <div className="grid two">
-            <Field label="Kết nối">
-              <select value={connectorCode} onChange={(e) => setConnectorCode(e.target.value)}>
-                {connectors.length > 0 ? connectors.map((c) => <option key={c.code}>{c.code}</option>) : <><option>VCB</option><option>VISA</option><option>NAPAS</option></>}
-              </select>
-            </Field>
-            <Field label="Thao tác hỗ trợ">
-              <input placeholder="sendOtp" value={operation} onChange={(e) => setOperation(e.target.value)} />
-            </Field>
-          </div>
-          <Field label="Tham số JSON">
-            <textarea rows="4" value={args} onChange={(e) => setArgs(e.target.value)} />
-          </Field>
-          <Button onClick={testConnector}>Gọi thử kết nối</Button>
-
-          <div className="tool-block">
-            <h3>Callback NAPAS</h3>
-            <div className="grid two">
-              <Field label="Mã giao dịch"><input value={refId} onChange={(e) => setRefId(e.target.value)} /></Field>
-              <Field label="Trạng thái đối tác"><select value={state} onChange={(e) => setState(e.target.value)}><option>SUCCESS</option><option>FAILED</option></select></Field>
-            </div>
-            <Button onClick={mockCallback}>Gửi callback</Button>
-          </div>
-        </section>
-      )}
-
-      {out && <pre className="output-box">{out}</pre>}
     </div>
   );
 }

@@ -20,7 +20,8 @@ function iso(ms) {
 
 module.exports = async function trails(req, res) {
   const status = req.param('status') || 'processing';
-  const limit = Math.min(Math.max(Number(req.param('limit') || 30), 1), 100);
+  const page = Math.max(Number(req.param('page') || 1), 1);
+  const limit = Math.min(Math.max(Number(req.param('limit') || 5), 1), 100);
   const transRefId = `${req.param('transRefId') || ''}`.trim();
   const serviceCode = `${req.param('serviceCode') || ''}`.trim().toUpperCase();
   const connector = `${req.param('connector') || ''}`.trim().toUpperCase();
@@ -33,7 +34,7 @@ module.exports = async function trails(req, res) {
 
   if (serviceCode) {
     const service = await Service.findOne({ code: serviceCode });
-    if (!service) return res.ok({ trails: [] });
+    if (!service) return res.ok({ trails: [], pagination: { page, pageSize: limit, total: 0, totalPages: 0 } });
     filter.service = String(service.id);
   }
 
@@ -46,11 +47,15 @@ module.exports = async function trails(req, res) {
   }
 
   const db = sails.getDatastore().manager;
-  const rows = await db.collection('transactiontrail')
-    .find(filter)
-    .sort({ updatedAt: -1 })
-    .limit(limit)
-    .toArray();
+  const collection = db.collection('transactiontrail');
+  const [total, rows] = await Promise.all([
+    collection.countDocuments(filter),
+    collection.find(filter)
+      .sort({ updatedAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .toArray(),
+  ]);
 
   const trails = [];
   for (const t of rows) {
@@ -76,5 +81,13 @@ module.exports = async function trails(req, res) {
     });
   }
 
-  return res.ok({ trails });
+  return res.ok({
+    trails,
+    pagination: {
+      page,
+      pageSize: limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
 };
