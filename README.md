@@ -1,4 +1,4 @@
-# 🪙 Mini Wallet
+# Mini Wallet
 
 Mini Wallet là ví điện tử demo cho luồng khách hàng và quản trị vận hành. Dự án tập trung vào engine giao dịch cấu hình được, ghi sổ ví an toàn, mock connector ngân hàng/thẻ/NAPAS, đối soát và giao diện web dễ dùng cho người không chuyên kỹ thuật.
 
